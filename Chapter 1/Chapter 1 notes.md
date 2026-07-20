@@ -189,3 +189,105 @@ apple
 **Takeaway:** essential whitespace = "indentation this line has that the least-indented
 line does *not*." Incidental whitespace = the common margin everyone shares. Move the
 closing `"""` and you move the cutoff.
+
+##### When does a text block create a new line?
+Only **line breaks you type between content lines** become `\n` in the value. Two special
+cases decide the leading and trailing newlines:
+
+- **Rule 1 - the line break right after the opening `"""` is required and is NOT part of
+  the string.** The content starts on the *next* line, so the opening delimiter never adds
+  a newline at the front.
+- **Rule 2 - there is a trailing newline only if the closing `"""` sits on its own line.**
+  If the closing `"""` is on the same line as the last text, there is no trailing `\n`.
+
+**Your exact question:**
+```java
+String pyramid = """
+0""";
+System.out.print(pyramid);
+```
+Value is `"0"` (length **1**). It prints just:
+```
+0
+```
+No newline before the `0` (Rule 1: the break after `"""` is discarded) and no newline after
+it (Rule 2: the closing `"""` is on the same line as `0`). So it does **not** print a blank
+line then `0` - it prints `0` on one line, nothing else. *(Verified with `javac`.)*
+
+**Move the closing `"""` to its own line and you get a trailing newline:**
+```java
+String pyramid = """
+0
+""";
+```
+Value is `"0\n"` (length **2**): prints `0` and then moves to a new line. The only change
+from the previous example is where the closing `"""` sits.
+
+**A blank first line, on the other hand, IS content:**
+```java
+String s = """
+
+0""";
+```
+Value is `"\n0"`. Rule 1 discards the *required* break after `"""`, but the blank line that
+follows is a real content line, so its break becomes a `\n`. Prints a blank line, then `0`.
+
+##### Table 1.8 - formatting sequences (regular String vs. text block)
+> Reminder: `·` marks a space that is really in the value (so you can see it).
+
+| Sequence                         | In a regular `String`                                         | In a text block                                                      |
+| -------------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `\"`                             | `"`                                                           | `"` (you don't *need* to escape quotes in a text block, but you may) |
+| `\"""`                           | invalid                                                       | `"""` (escape so it isn't read as the closing delimiter)             |
+| `\"\"\"`                         | `"""`                                                         | `"""`                                                                |
+| a space at the **end of a line** | stays a space                                                 | **ignored / stripped**                                               |
+| `\s`                             | a space (preserves the space; stops trailing-space stripping) | a space (same)                                                       |
+| `\` at the **end of a line**     | invalid                                                       | **omits the newline** on that line (joins to next)                   |
+
+**Two rows are the ones that actually change behavior - study these:**
+
+> **What is a trailing space?** A space (or spaces) at the **end** of a line, after the last
+> visible character and before the line break. The opposite is a **leading** space, at the
+> **start** of a line (indentation). Both are real characters you just can't see:
+> `"hi···"` has 3 trailing spaces and a length of 5, not 2.
+
+**1. Trailing spaces are stripped.** Every line of a text block has its trailing whitespace
+removed. So this:
+```java
+String s = """
+    hello
+    """;
+```
+gives `"hello\n"` even if you accidentally left spaces after `hello`. To *keep* a trailing
+space, end the line with `\s` (which is a space that survives stripping):
+```java
+String s = """
+    hello\s
+    """;
+```
+gives `"hello·\n"` - one real trailing space.
+
+**2. `\` at the end of a line removes that line's newline** (line continuation). From the
+book (verified):
+```java
+String block = """
+   doe \
+   deer""";
+```
+is **one line**: `"doe deer"` (length 8). The `\` after `doe ` cancels the newline that the
+line break would have created, so `doe ` and `deer` join.
+
+**Contrast - literal `\n` plus real line breaks stack up:**
+```java
+String block = """
+   doe \n
+   deer
+   """;
+```
+This is **four lines**. The value is `"doe \n\ndeer\n"`:
+- `doe ` then a *literal* `\n` you typed, then
+- the real line break after that line -> another `\n` (that is the blank line),
+- `deer`, then
+- the real line break before the closing `"""` on its own line -> trailing `\n`.
+
+So printing it gives: `doe ` / (blank line) / `deer` / (newline). *(Verified: 4 lines.)*
