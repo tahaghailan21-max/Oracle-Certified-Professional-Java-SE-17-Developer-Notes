@@ -232,7 +232,7 @@ String s = """
 Value is `"\n0"`. Rule 1 discards the *required* break after `"""`, but the blank line that
 follows is a real content line, so its break becomes a `\n`. Prints a blank line, then `0`.
 
-##### Table 1.8 - formatting sequences (regular String vs. text block)
+##### Table - formatting sequences (regular String vs. text block)
 > Reminder: `·` marks a space that is really in the value (so you can see it).
 
 | Sequence                         | In a regular `String`                                         | In a text block                                                      |
@@ -354,3 +354,247 @@ This is **four lines**. The value is `"doe \n\ndeer\n"`:
 - the real line break before the closing `"""` on its own line -> trailing `\n`.
 
 So printing it gives: `doe ` / (blank line) / `deer` / (newline). *(Verified: 4 lines.)*
+
+### Primitive Types
+
+##### Definition
+Java has **eight built-in data types**, called the **primitive types**. They are the building
+blocks for all Java objects. A primitive is **not** an object and does not represent one - it
+is just a **single value in memory**, such as a number or a character.
+
+##### Table - Primitive types
+| Keyword | Type | Min value | Max value | Default value | Example |
+|---|---|---|---|---|---|
+| `boolean` | true or false | n/a | n/a | `false` | `true` |
+| `byte` | 8-bit integral value | -128 | 127 | `0` | `123` |
+| `short` | 16-bit integral value | -32,768 | 32,767 | `0` | `123` |
+| `int` | 32-bit integral value | -2,147,483,648 | 2,147,483,647 | `0` | `123` |
+| `long` | 64-bit integral value | -2^63 | 2^63 - 1 | `0L` | `123L` |
+| `float` | 32-bit floating-point value | n/a | n/a | `0.0f` | `123.45f` |
+| `double` | 64-bit floating-point value | n/a | n/a | `0.0` | `123.456` |
+| `char` | 16-bit Unicode value | 0 | 65,535 | `\u0000` | `'a'` |
+
+> **Note:** these default values only apply to **fields** (instance variables and `static`
+> variables) and **array elements** - **not** to local variables. More on that below.
+
+##### Writing Literals
+A **literal** is a number written directly in the code. Two default-type rules matter:
+
+- An **integer** literal (no decimal point) is assumed to be an **`int`** by default.
+- A **decimal** literal is assumed to be a **`double`** by default.
+
+Because an integer literal defaults to `int`, a value too big for `int` fails to compile even
+if you assign it to a `long`:
+```java
+long max = 3123456789;    // DOES NOT COMPILE - the literal is an int, and it's out of int range
+long max = 3123456789L;   // OK - the L makes it a long literal
+```
+- Add **`L`** (or `l`) to make an integer literal a `long`. Use **uppercase `L`** - lowercase
+  `l` looks like the digit `1`.
+- Add **`f`** (or `F`) to make a decimal literal a `float`; without it a decimal is a `double`.
+  ```java
+  float f = 1.0;    // DOES NOT COMPILE - 1.0 is a double, doesn't fit float without a cast/suffix
+  float f = 1.0f;   // OK
+  ```
+
+**Number bases.** Java literals default to base 10 (decimal), but you can also write:
+
+| Base | Digits allowed | Prefix | Example |
+|---|---|---|---|
+| Octal | 0-7 | `0` | `017` |
+| Hexadecimal | 0-9, A-F / a-f (case-insensitive) | `0x` or `0X` | `0xFF`, `0xff`, `0XFf` |
+| Binary | 0-1 | `0b` or `0B` | `0b10`, `0B10` |
+
+> The exam won't ask you to *convert* between bases - only to **recognize valid literals**.
+
+**Underscores in literals** (for readability): `1_000_000` is the same as `1000000`. You may
+put `_` between digits, but **NOT**:
+- at the **beginning** of the literal,
+- at the **end** of the literal,
+- **right before** a decimal point, or
+- **right after** a decimal point.
+
+Multiple underscores in a row *are* allowed (just ugly). Examples (verified with `javac`):
+```java
+double notAtStart   = _1000.00;      // DOES NOT COMPILE (starts with _)
+double notAtEnd     = 1000.00_;      // DOES NOT COMPILE (ends with _)
+double notByDecimal = 1000_.00;      // DOES NOT COMPILE (_ right before the .)
+double annoyingLegal = 1_00_0.0_0;   // compiles (ugly, but legal)
+double reallyUgly    = 1__________2; // compiles (multiple _ in a row)
+```
+
+##### Review question - numeric literals
+> Which expressions, inserted independently into the blank, let the code compile?
+> ```java
+> public void printMagicData() {
+>     var magic = ______ ;
+>     System.out.println(magic);
+> }
+> ```
+> A. `3_1`  B. `1_329_.0`  C. `3_13.0_`  D. `5_291._2`  E. `2_234.0_0`  F. `9___6`  G. `_1_3_5_0`
+
+**Answer: A, E, F.** An underscore can go in any numeric literal *as long as* it is not at the
+beginning, at the end, or next to a decimal point. Multiple underscores next to each other are
+fine.
+- A `3_1` -> valid (`int` 31). **compiles**
+- E `2_234.0_0` -> valid (underscores only between digits). **compiles**
+- F `9___6` -> valid (multiple underscores between digits). **compiles**
+- B `1_329_.0` -> `_` is right before the decimal point. invalid
+- D `5_291._2` -> `_` is right after the decimal point. invalid
+- C `3_13.0_` -> `_` is at the end of the literal. invalid
+- G `_1_3_5_0` -> `_` is at the beginning of the literal. invalid
+
+##### What type is a literal written in another base? (hex / octal / binary)
+Writing a number in another base is **just different notation for the same value** - it does
+**NOT** change the type. The type rule is identical to a decimal literal:
+
+- An integer literal, **in any base**, is an **`int` by default**, or a **`long`** if you add
+  `L`. So `0xFF`, `012`, and `0b10` are all `int` (values 255, 10, 2); `0xFFL` is a `long`.
+- Therefore `var x = 0xFF;` makes `x` an **`int`** with value **255**. `var y = 0xFFL;` makes
+  `y` a **`long`**. (`var` just copies the literal's type.)
+
+**Can any type be assigned `0x34`, `012`, etc.?** Yes - subject to the **same "does the value
+fit?" rules as any decimal literal**, because underneath it is the same `int` value. Verified
+with `javac`:
+
+| Assignment | Result | Why |
+|---|---|---|
+| `int i = 0xFF;` | OK | it is an `int` |
+| `long l = 0xFF;` | OK | `int` widens to `long` |
+| `double d = 0xFF;` | OK | `255` becomes `255.0` |
+| `byte b = 0x7F;` | OK | 127 fits in `byte` (constant that fits is allowed) |
+| `byte b = 0xFF;` | DOES NOT COMPILE | 255 does not fit `byte` ("possible lossy conversion from int to byte") |
+
+**Rule to remember:** the base is cosmetic. A hex/octal/binary literal is an `int` (or `long`
+with `L`), and assigning it follows the normal "does the value fit the target type?" rules.
+
+> Edge note (NOT on the exam): hex *floating-point* literals exist but need a `p` exponent,
+> e.g. `0x1.8p1`. For 1Z0-829, treat hex/octal/binary as **integer** literals only.
+
+### Reference Types (vs. Primitives)
+
+A **reference type** refers to an **object** (an instance of a class). Unlike a primitive,
+which holds its value directly, a reference does **not** hold the object's value - it holds the
+object's **memory address** and "points to" it. Java never lets you see the actual address; you
+only ever use the reference.
+
+```java
+String greeting;                          // a reference that can point to a String
+greeting = new String("How are you?");    // now points to a new String object
+```
+A reference gets a value in one of two ways: assigned to **another object** of the same/
+compatible type, or assigned to a **new object** with `new`. The object itself has no name -
+you can only reach it through a reference.
+
+**Three differences between primitives and reference types:**
+1. **Naming:** primitive type names are **lowercase** (`int`, `double`); class names start
+   **uppercase** (`String`, `Integer`). Convention (not enforced), but always follow it.
+2. **Methods:** a reference (if not `null`) can call methods; a **primitive has none**.
+   ```java
+   String reference = "hello";
+   int len = reference.length();   // OK - String has methods
+   int bad = len.length();         // DOES NOT COMPILE - len is an int (primitive), no methods
+   ```
+3. **`null`:** reference types can be `null` (pointing to nothing); primitives **cannot**.
+   ```java
+   int value = null;    // DOES NOT COMPILE
+   String name = null;  // OK
+   ```
+   -> If you need an integer that can be "unknown"/`null`, use the wrapper **`Integer`**
+   instead of `int`. This is the motivation for wrapper classes.
+
+##### Creating Wrapper Classes
+Each primitive has a matching **wrapper class**: an **object** type that holds one primitive
+value inside it.
+
+###### Table - Wrapper classes
+| Primitive | Wrapper class | Inherits `Number`? | Example of creating |
+|---|---|---|---|
+| `boolean` | `Boolean` | No | `Boolean.valueOf(true)` |
+| `byte` | `Byte` | Yes | `Byte.valueOf((byte) 1)` |
+| `short` | `Short` | Yes | `Short.valueOf((short) 1)` |
+| `int` | `Integer` | Yes | `Integer.valueOf(1)` |
+| `long` | `Long` | Yes | `Long.valueOf(1)` |
+| `float` | `Float` | Yes | `Float.valueOf((float) 1.0)` |
+| `double` | `Double` | Yes | `Double.valueOf(1.0)` |
+| `char` | `Character` | No | `Character.valueOf('c')` |
+
+**The methods - what each one does:**
+
+- **`valueOf(primitive)`** -> returns a **wrapper object** that boxes the primitive.
+  `Integer.valueOf(1)` gives an `Integer` holding `1`.
+- **`valueOf(String)`** -> parses the text and returns a **wrapper object**.
+  `Integer.valueOf("123")` gives an `Integer`.
+- **`parseInt(String)` / `parseXxx(String)`** -> parses the text and returns a **primitive**.
+  `Integer.parseInt("123")` gives an `int` (no object created).
+- **`xxxValue()`** (called on a wrapper instance) -> returns the stored value **as the requested
+  primitive type**. Numeric wrappers have `byteValue()`, `shortValue()`, `intValue()`,
+  `longValue()`, `floatValue()`, `doubleValue()` (from `Number`); `Boolean`/`Character` have
+  `booleanValue()`/`charValue()`. Narrowing here **can lose data**.
+
+**The difference that gets tested - return type of `parseInt` vs `valueOf`:**
+```java
+int prim     = Integer.parseInt("123");   // primitive int
+Integer wrap = Integer.valueOf("123");     // Integer object
+```
+Mnemonic: **`parseXxx` -> primitive**, **`valueOf` -> the value Object (wrapper)**.
+
+`xxxValue()` extracting (and possibly losing) data (verified with `javac`):
+```java
+Double apple = Double.valueOf("200.99");
+apple.byteValue();    // -56    (200 doesn't fit in byte -> wraps around)
+apple.intValue();     // 200    (decimal part truncated)
+apple.doubleValue();  // 200.99
+```
+
+**What happens in the background:**
+- A wrapper is just an object with one primitive stored inside. Putting a primitive into a
+  wrapper is **boxing**; taking it back out is **unboxing** (Java can do both automatically -
+  *autoboxing*, Chapter 5).
+- `valueOf(String)` = **parse + box** (text -> primitive -> wrapper object).
+  `parseInt(String)` = **parse only** (text -> primitive, no object).
+- Background gotcha (Chapter 5, but worth knowing now): `Integer.valueOf(int)` **reuses cached
+  objects** for small values (-128 to 127). So two `Integer.valueOf(127)` are the **same
+  object** (`==` is `true`), but two `Integer.valueOf(1000)` are **different objects**
+  (`==` is `false`). *(Verified.)* This is why you compare wrapper objects with `.equals()`,
+  not `==`.
+
+###### Table - conversion methods at a glance
+| Method                                            | Input / called on          | Returns                             |
+| ------------------------------------------------- | -------------------------- | ----------------------------------- |
+| `Integer.parseInt(String)` (and other `parseXxx`) | a `String`                 | **primitive** (e.g. `int`)          |
+| `Integer.valueOf(String)`                         | a `String`                 | **wrapper object** (e.g. `Integer`) |
+| `Integer.valueOf(primitive)`                      | a primitive                | **wrapper object** (e.g. `Integer`) |
+| `intValue()`, `doubleValue()`, ...                | called on a wrapper object | **primitive** (the requested type)  |
+
+### Initialization & Default Values
+
+##### What "default value" means
+The default value is what a variable gets **automatically when you don't initialize it** - but
+this only happens for **fields**, not for every variable. "Defaults are a field thing."
+
+| Kind of variable | Declared where | Gets a default? |
+|---|---|---|
+| Instance variable (field) | in the class body | **Yes** (the table value) |
+| Static / class variable | in the class body with `static` | **Yes** (the table value) |
+| Array elements | any `new int[3]` etc. | **Yes** (filled with defaults) |
+| **Local variable** | inside a method / block | **NO** - must be assigned before use, or it **does not compile** |
+
+```java
+public class Example {
+    int instanceInt;          // field    -> defaults to 0
+    static boolean flag;      // static   -> defaults to false
+
+    void method() {
+        int localInt;                     // local -> NO default
+        System.out.println(localInt);     // DOES NOT COMPILE
+                                          // "variable localInt might not have been initialized"
+        System.out.println(instanceInt);  // fine: prints 0
+    }
+}
+```
+
+- A local variable read before a value is assigned = **compile error** (not a runtime crash,
+  not garbage). Java forces you to assign it first.
+- It is not "declared but never assigned" that fails - it is *using* it before assignment.
+  `int x; x = 5; System.out.println(x);` is fine.
