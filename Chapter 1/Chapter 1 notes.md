@@ -244,6 +244,69 @@ follows is a real content line, so its break becomes a `\n`. Prints a blank line
 | `\s`                             | a space (preserves the space; stops trailing-space stripping) | a space (same)                                                       |
 | `\` at the **end of a line**     | invalid                                                       | **omits the newline** on that line (joins to next)                   |
 
+**Row by row, with an example for each side (`·` = a real space):**
+
+*Row 1 - `\"` produces a literal `"`.*
+- Regular String: you **must** escape quotes, or a bare `"` ends the string.
+  ```java
+  String r = "She said \"hi\"";   // value: She said "hi"
+  ```
+- Text block: quotes need **no** escaping (a lone `"` is safe), but `\"` still works:
+  ```java
+  String t = """
+  She said "hi" and \"bye\"""";    // value: She said "hi" and "bye"
+  ```
+
+*Rows 2 and 3 - `\"""` and `\"\"\"` both produce `"""`.* Same problem: how to put three
+literal quotes in a text block when `"""` means "end the block." You escape at least one.
+- Regular String: `\"""` alone is **invalid**; `\"\"\"` is fine -> `"""`:
+  ```java
+  String r = "\"\"\"";             // value: """  (length 3)
+  ```
+- Text block: both `\"""` and `\"\"\"` give `"""`:
+  ```java
+  String t = """
+  three: \"""
+  """;                             // value: three: """
+  ```
+
+*Row 4 - a space at the end of a line.*
+- Regular String: **kept**.
+  ```java
+  String r = "hi···";              // length 5, spaces stay
+  ```
+- Text block: **stripped** (trailing spaces on every line are deleted).
+  ```java
+  String t = """
+  hi···
+  """;                             // value: "hi\n", length 3
+  ```
+
+*Row 5 - `\s` is a space that survives stripping.*
+- Regular String: just a space.
+  ```java
+  String r = "hi\s";               // value: "hi·", length 3
+  ```
+- Text block: the trailing space is **kept** (not treated as trailing whitespace).
+  ```java
+  String t = """
+  hi\s
+  """;                             // value: "hi·\n", length 4
+  ```
+
+*Row 6 - `\` at the end of a line omits that line's newline.*
+- Regular String: **invalid** (you can't split a regular literal across source lines).
+- Text block: the `\` **removes the newline**, joining to the next line:
+  ```java
+  String t = """
+  line1 \
+  line2
+  """;                             // value: "line1 line2\n" - one line
+  ```
+
+**Mental summary:** rows 1-3 = how to get literal `"` characters (escaping); rows 4-5 =
+trailing spaces (stripped by default, `\s` keeps one); row 6 = `\` joins lines.
+
 **Two rows are the ones that actually change behavior - study these:**
 
 > **What is a trailing space?** A space (or spaces) at the **end** of a line, after the last
