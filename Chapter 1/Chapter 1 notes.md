@@ -1015,3 +1015,185 @@ Trace it exactly like Chick/Egg above:
 
 Total output: `7-` + `0-` + `2-` + `4-` = **`7-0-2-4-`**
 
+### Garbage Collection
+
+##### Definition
+**Garbage collection** is the process of automatically freeing heap memory by deleting objects
+that are no longer reachable in the program. All Java objects live on the heap (also called the
+*free store*). If a program keeps instantiating objects and leaving them on the heap, it will
+eventually run out of memory and crash - garbage collection is what solves this.
+
+##### Eligibility - the one rule that matters
+An object is **eligible for garbage collection** the moment it is no longer reachable. That
+happens in exactly one of two ways:
+- **The object no longer has any references pointing to it**, or
+- **All references to the object have gone out of scope.**
+
+Being *eligible* is not the same as being *collected*. The JVM decides when (or even if) an
+eligible object is actually reclaimed - that part is out of your control. The book's analogy:
+making an object eligible is like sealing a package and putting it in your mailbox for the mail
+carrier - you don't control when (or whether) they actually come pick it up.
+
+Java gives you one built-in way to *suggest* that garbage collection run:
+```java
+System.gc();
+```
+Just like the post office, Java is free to ignore you. **This method is never guaranteed to do
+anything.**
+
+##### Objects vs. References
+- A **reference** is a variable that has a name and is used to access an object's contents. A
+  reference can be assigned to another reference, passed to a method, or returned from a method.
+  All references are the same size, no matter their type.
+- An **object** sits on the heap and does *not* have a name - it can only be accessed through a
+  reference. Objects come in all shapes and sizes and consume varying amounts of memory.
+- An object cannot be assigned to another object, and cannot be passed to or returned from a
+  method - only references can. **It is the object that gets garbage collected, not the
+  reference.**
+
+##### Tracing eligibility - the exam technique
+For any GC question: **draw a picture.** A box for each object created with `new`, and an arrow
+from each reference variable's name to the box it currently points to. As code reassigns a
+variable, sets it to `null`, or the variable goes out of scope, cross out that arrow. The moment
+a box has zero arrows pointing to it, that object became eligible right then - track *when*, not
+just *if*.
+
+**Worked example from the book:**
+```java
+1: public class Scope {
+2:    public static void main(String[] args) {
+3:       String one, two;
+4:       one = new String("a");
+5:       two = new String("b");
+6:       one = two;
+7:       String three = one;
+8:       one = null;
+9:    } }
+```
+- Line 3: write `one` and `two` (just the words - no boxes/arrows yet, nothing is on the heap).
+- Line 4: box `"a"`, arrow `one → "a"`.
+- Line 5: box `"b"`, arrow `two → "b"`.
+- Line 6: `one` now points to what `two` points to - erase `one → "a"`, draw `one → "b"`.
+  `three` doesn't exist yet, so at this instant `"a"` has zero arrows pointing to it. **`"a"`
+  becomes eligible for garbage collection right after line 6.**
+- Line 7: new variable `three`, arrow `three → "b"` (it points to whatever `one` points to
+  *right now* - `"b"` - not to what `one` originally pointed to).
+- Line 8: `one = null` - cross out `one → "b"`. `"b"` still has `two` and `three` pointing to
+  it, so it is **not yet eligible**. `"b"` only becomes eligible once `two` and `three` both go
+  out of scope, which happens at the end of the method on line 9.
+
+##### Review question 1
+> Which statements about the following program are correct? (Choose all that apply.)
+> ```java
+> 2:  public class Bear {
+> 3:     private Bear pandaBear;
+> 4:     private void roar(Bear b) {
+> 5:        System.out.println("Roar!");
+> 6:        pandaBear = b;
+> 7:     }
+> 8:     public static void main(String[] args) {
+> 9:        Bear brownBear = new Bear();
+> 10:       Bear polarBear = new Bear();
+> 11:       brownBear.roar(polarBear);
+> 12:       polarBear = null;
+> 13:       brownBear = null;
+> 14:       System.gc(); } }
+> ```
+> A. The object created on line 9 is eligible for garbage collection after line 13.
+> B. The object created on line 9 is eligible for garbage collection after line 14.
+> C. The object created on line 10 is eligible for garbage collection after line 12.
+> D. The object created on line 10 is eligible for garbage collection after line 13.
+> E. Garbage collection is guaranteed to run.
+> F. Garbage collection might or might not run.
+> G. The code does not compile.
+
+**Answer: A, D, F.**
+Trace with boxes:
+- Line 9: box `BB`, arrow `brownBear → BB`.
+- Line 10: box `PB`, arrow `polarBear → PB`.
+- Line 11: `roar` runs with `b = PB`; inside, `pandaBear = b` makes `BB`'s field
+  `pandaBear → PB`. Now `PB` has **two** arrows pointing to it: `polarBear → PB` and
+  `BB.pandaBear → PB`.
+- Line 12: `polarBear = null` - erase `polarBear → PB`. But `BB.pandaBear → PB` still exists,
+  so `PB` is **still reachable** (through `BB`) - **not** eligible yet. (This is why C is wrong.)
+- Line 13: `brownBear = null` - erase `brownBear → BB`. `BB` now has zero arrows -
+  **the line-9 object becomes eligible right after line 13** (A). Since `BB` is now
+  unreachable, its field `pandaBear → PB` no longer counts as a path either - nothing reaches
+  `PB` anymore, so **the line-10 object also becomes eligible right after line 13** (D).
+- Line 14: `System.gc()` is only a suggestion - never guaranteed (F). B is wrong because `BB`
+  was already eligible *before* line 14 ran; E is wrong because GC is never guaranteed.
+
+##### Review question 2
+> Which of the following statements about garbage collection are correct? (Choose all that
+> apply.)
+> A. Calling `System.gc()` is guaranteed to free up memory by destroying objects eligible for
+>    garbage collection.
+> B. Garbage collection runs on a set schedule.
+> C. Garbage collection allows the JVM to reclaim memory for other objects.
+> D. Garbage collection runs when your program has used up half the available memory.
+> E. An object may be eligible for garbage collection but never removed from the heap.
+> F. An object is eligible for garbage collection once no references to it are accessible in
+>    the program.
+> G. Marking a variable `final` means its associated object will never be garbage collected.
+
+**Answer: C, E, F.**
+- **C** correct - that's the whole point of GC: reclaiming heap memory so it can be reused.
+- **E** correct - GC is never *guaranteed* to run, so an object can stay eligible without ever
+  actually being collected (e.g., the program ends first).
+- **F** correct - this is the definition of eligibility: no reachable references left.
+- A wrong - `System.gc()` is only a *suggestion*; the JVM is free to ignore it.
+- B, D wrong - there's no fixed schedule or memory-usage threshold that triggers GC.
+- **G wrong - the `final` trap.** `final` only locks the **reference variable** (you can't
+  repoint it) - it says nothing about the **object's reachability**. A `final` local variable
+  still goes out of scope like any other variable, and once nothing references its object
+  anymore, that object is just as eligible for GC as if it weren't `final`.
+
+##### The whole topic in one phrase
+**An object is eligible for GC the instant nothing reachable points to it anymore - track that
+moment by drawing boxes and arrows and crossing arrows out as references get reassigned,
+nulled, or fall out of scope; `System.gc()` and `final` are both irrelevant to that moment, since neither one guarantees or prevents collection.**
+
+### Which packages are imported by default?
+
+Only **`java.lang.*`** is automatically imported into **every** Java class - no import needed
+for things like `String`, `System`, `Math`, `Object`, `Integer`, etc.
+
+The other case where no import is needed (not a package auto-import, but has the same effect):
+**classes in your own current package are automatically visible** to each other. Java looks in
+the current package before anywhere else, so two classes declared in the same package can
+reference each other with zero `import` statements.
+
+**Clarifying the book's `NumberPicker` example** (it bundles two *separate* redundancies
+together, which reads confusingly at a glance):
+```java
+3:  import java.util.Random;
+4:  import java.util.*;
+5:  public class NumberPicker {
+6:     public static void main(String[] args) {
+7:        Random r = new Random();
+8:        System.out.println(r.nextInt(10));
+9:     }
+10: }
+```
+The book says three imports are redundant here. **`Random` is not part of `java.lang` at all -
+it lives in `java.util`.** The two redundancies are unrelated to each other:
+1. The example (as printed in the book) also had one or two `java.lang` imports earlier in the
+   snippet (lines 1-2, not shown above) - those are redundant purely because `java.lang` is
+   always auto-imported. This has **nothing to do with `Random`**.
+2. Separately, **line 4 (`import java.util.*;`) is redundant only because line 3
+   (`import java.util.Random;`) already imports the one class actually used.** If line 3 weren't
+   there, line 4 would *not* be redundant - it would be the thing covering `Random`.
+So: `Random` is only ever reached via a `java.util` import (explicit or wildcard) - never via
+`java.lang`. The `java.lang` redundancy and the `java.util` redundancy in that example are two
+independent points made side by side, not one point about `Random` being in `java.lang`.
+
+### Does Java support default method parameter values?
+
+**Not covered by Chapter 1 - flagging this rather than asserting it.** Nothing in this chapter's
+material on declaring/initializing variables, constructors, or method parameters describes a
+default-parameter-value syntax; method parameters are simply treated as locals that are always
+"pre-initialized" *by the caller*, meaning the caller must supply a value for every parameter.
+That's as far as Chapter 1's content actually goes on this question - if the answer is addressed
+head-on anywhere in the book, it would be later (e.g., around method overloading), which hasn't
+been reviewed yet.
+

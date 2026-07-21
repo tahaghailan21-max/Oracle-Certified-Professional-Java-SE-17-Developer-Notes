@@ -21,3 +21,7 @@ a first read — the tricky, exam-tested details.
   legal/illegal reference table)
 - Order of Initialization (constructors, instance initializer blocks, and the file-order vs.
   constructor-always-last rule)
+- Garbage Collection (eligibility rule, objects vs. references, tracing technique with worked
+  examples)
+- Default Imports & Method Parameters (what's auto-imported besides `java.lang`, and whether
+  Java supports default parameter values)
