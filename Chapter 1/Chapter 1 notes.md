@@ -567,6 +567,124 @@ apple.doubleValue();  // 200.99
 | `Integer.valueOf(primitive)`                      | a primitive                | **wrapper object** (e.g. `Integer`) |
 | `intValue()`, `doubleValue()`, ...                | called on a wrapper object | **primitive** (the requested type)  |
 
+### Variable Types & Scope
+
+Three kinds of variables, distinguished by **where they are declared** (not by their name):
+
+| Kind | Where declared | Scope / lifetime |
+|---|---|---|
+| **Local variable** | inside a method or block (a **method parameter** counts too) | from its declaration to the **end of that block** `{ }`; a parameter lasts the whole method |
+| **Instance variable** (field) | in the class body, **without** `static` | from declaration **until the object is eligible for garbage collection** (one per object) |
+| **Class variable** | in the class body, **with** `static` | from declaration **until the program ends** (one, shared by all instances) |
+
+Braces `{ }` open a new block, and each block has its own scope. An inner block can see
+variables from the outer block, but **not** the other way around.
+
+```java
+public class Mouse {
+    final static int MAX_LENGTH = 5;        // class variable (static)
+    int length;                             // instance variable
+    public void grow(int inches) {          // inches -> local (method parameter)
+        if (length < MAX_LENGTH) {
+            int newSize = length + inches;  // local, scoped to the if block only
+            length = newSize;
+        }
+    }
+}
+```
+
+##### When does each variable come into existence?
+- **Instance variable:** one copy **per object**, created when that object is created (`new`).
+  Ten objects -> ten separate copies.
+- **Class (`static`) variable:** exactly **one copy total**, belonging to the **class itself**,
+  not to any object. It is created when the **class is first loaded/initialized by the JVM** -
+  i.e. the first time the class is actively used (first object created, or first access to a
+  static member, whichever comes first). That happens **before any objects exist**, and the
+  variable exists **even if you never create a single instance**. It lives until the **program
+  ends**.
+- Because it belongs to the class, you access it as `ClassName.var` (e.g. `Mouse.MAX_LENGTH`)
+  and all instances share that one value.
+
+| | Instance variable | Class (`static`) variable |
+|---|---|---|
+| How many copies | one **per object** | **one total** (shared) |
+| Created when | that object is created (`new`) | the **class is first loaded** (before any object) |
+| Lives until | the object is eligible for GC | the **program ends** |
+| Accessed via | an object reference | `ClassName.var` |
+
+**When exactly is a class "loaded" (so its `static` variables come into existence)?**
+A class initializes on its **first active use** - you do **not** need to create an object first.
+Any of these triggers it (whichever happens first):
+- launching it with `java ClassName` (the launched class is initialized before `main` runs),
+- creating an instance (`new`),
+- accessing or assigning a **non-constant** `static` member,
+- calling a `static` method.
+
+Demonstration (`>>` lines print exactly when each class initializes):
+```java
+class A { static int x = Demo.report("A"); }   // only used as a reference type
+class B { static int x = Demo.report("B"); }   // static field is read
+class C { static int x = Demo.report("C"); }   // an object is created
+class D { static int x = Demo.report("D"); }   // never touched
+
+public class Demo {
+    static { System.out.println(">> Demo initialized (ran `java Demo`)"); }
+    static int report(String n){ System.out.println(">> " + n + " initialized"); return 0; }
+    public static void main(String[] args){
+        A a;              // (1) declare a reference   -> A NOT initialized
+        int v = B.x;      // (2) read a static field   -> B initialized (no object!)
+        C c = new C();    // (3) create an object      -> C initialized
+                          // (4) D is never touched     -> D NEVER initialized
+    }
+}
+```
+Output:
+```
+>> Demo initialized (ran `java Demo`)
+>> B initialized
+>> C initialized
+```
+So `A` and `D` are **never** initialized - their `static` variables never come into existence.
+
+**Cases where the class is NOT initialized:**
+- Declaring a reference of that type (`A a;`) - a reference is not "active use".
+- Never using the class at all (`D`).
+- Reading a `static final` **compile-time constant**, e.g. `Const.X` where
+  `static final int X = 5;` - the compiler **inlines** the value, so the class is not loaded.
+
+##### Review question - variable scope
+How many variables are in scope on the line marked `// SCOPE` (line 14)?
+```java
+1:  public class Camel {
+2:     { int hairs = 3_000_0; }
+3:     long water, air=2;
+4:     boolean twoHumps = true;
+5:     public void spit(float distance) {
+6:        var path = "";
+7:           { double teeth = 32 + distance++; }
+8:           while(water > 0) {
+9:              int age = twoHumps ? 1 : 2;
+10:             short i=-1;
+11:             for(i=0; i<10; i++) {
+12:                var Private = 2;
+13:             }
+14:             // SCOPE
+15:          }
+16:      }
+17: }
+```
+A. 2  B. 3  C. 4  D. 5  E. 6  **F. 7**  G. None of the above
+
+**Answer: F (7).** Trace the braces `{ }` to see what is still open at line 14:
+- **Out of scope** by line 14: `hairs` (line 2, its own one-line block), `teeth` (line 7, one-line
+  block), and `Private` (line 12, scoped to the `for` loop on lines 11-13).
+- **In scope** at line 14:
+  - 3 instance variables: `water`, `air` (line 3) and `twoHumps` (line 4) - fields are available
+    throughout every instance method.
+  - 4 locals: `distance` (the method parameter, line 5), `path` (line 6), `age` (line 9), and
+    `i` (line 10) - the method and the `while` block are both still open.
+- Total = 3 + 4 = **7**.
+
 ### Initialization & Default Values
 
 ##### What "default value" means
@@ -598,3 +716,39 @@ public class Example {
   not garbage). Java forces you to assign it first.
 - It is not "declared but never assigned" that fails - it is *using* it before assignment.
   `int x; x = 5; System.out.println(x);` is fine.
+
+**Examples (all defaults verified with `javac`):**
+```java
+public class Defaults {
+    static int staticInt;      // class var    -> 0
+    static boolean staticBool; // class var    -> false
+    int instanceInt;           // instance var -> 0
+    double instanceDouble;     // instance var -> 0.0
+    String instanceRef;        // instance var (reference) -> null
+
+    public static void main(String[] a) {
+        Defaults d = new Defaults();
+        System.out.println(d.instanceInt);      // 0
+        System.out.println(d.instanceDouble);   // 0.0
+        System.out.println(d.instanceRef);      // null
+        System.out.println(staticInt);          // 0
+        System.out.println(staticBool);         // false
+
+        int[] arr = new int[3];
+        System.out.println(arr[0]);             // 0     (array elements get defaults)
+        boolean[] barr = new boolean[2];
+        System.out.println(barr[0]);            // false
+        String[] sarr = new String[2];
+        System.out.println(sarr[0]);            // null  (reference elements default to null)
+    }
+}
+```
+Notice the default for any **reference type** (like `String`) is **`null`**, not an empty value.
+
+Contrast - a **local** variable has no default, so using it before assignment fails:
+```java
+public static void main(String[] a) {
+    int x;
+    System.out.println(x);   // DOES NOT COMPILE: "variable x might not have been initialized"
+}
+```

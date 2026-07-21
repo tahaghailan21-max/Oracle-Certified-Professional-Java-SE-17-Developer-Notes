@@ -11,4 +11,9 @@ a first read — the tricky, exam-tested details.
 ## Contents
 
 ### Chapter 1 — Building Blocks
-- Strings & Text Blocks (definition, purpose, incidental vs. essential whitespace)
+- Strings & Text Blocks (definition, purpose, incidental vs. essential whitespace,
+  when a newline is created, formatting sequences)
+- Primitive Types (the 8 types, writing literals, number bases, underscores)
+- Reference Types vs. Primitives, and Wrapper Classes (parseInt vs. valueOf, boxing)
+- Variable Types & Scope (local, instance, class variables; when a class is loaded)
+- Initialization & Default Values (which variables get defaults, local-variable rules)
