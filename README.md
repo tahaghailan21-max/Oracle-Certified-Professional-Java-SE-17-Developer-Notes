@@ -17,3 +17,7 @@ a first read — the tricky, exam-tested details.
 - Reference Types vs. Primitives, and Wrapper Classes (parseInt vs. valueOf, boxing)
 - Variable Types & Scope (local, instance, class variables; when a class is loaded)
 - Initialization & Default Values (which variables get defaults, local-variable rules)
+- The `final` Keyword (declaration, initialization, and its effect on default values, with
+  legal/illegal reference table)
+- Order of Initialization (constructors, instance initializer blocks, and the file-order vs.
+  constructor-always-last rule)

@@ -752,3 +752,266 @@ public static void main(String[] a) {
     System.out.println(x);   // DOES NOT COMPILE: "variable x might not have been initialized"
 }
 ```
+
+##### What each type defaults to (for fields / static / array elements)
+| Type | Default |
+|---|---|
+| `boolean` | `false` |
+| `byte`, `short`, `int`, `long` | `0` (for `long`, the value 0) |
+| `float` | `0.0f` |
+| `double` | `0.0` |
+| `char` | the "null character" ` ` (numeric value `0`) |
+| any **reference** type (`String`, arrays, `Integer`, any object) | `null` |
+
+Remember: this only applies to **fields** (instance and `static`) and **array elements**.
+**Local variables have no default at all.**
+
+##### Review question - defaults
+Which of the following are correct? (Choose all that apply.)
+- A. An instance variable of type `float` defaults to `0`.
+- B. An instance variable of type `char` defaults to `null`.
+- C. A local variable of type `double` defaults to `0.0`.
+- D. A local variable of type `int` defaults to `null`.
+- E. A class variable of type `String` defaults to `null`.
+- F. A class variable of type `String` defaults to the empty string `""`.
+- G. None of the above.
+
+**Answer: E only.**
+- C, D wrong: **local variables don't have defaults** at all.
+- A wrong: a `float` default is `0.0f` - it needs a decimal point; `0` (an int) is not accepted
+  as the right answer.
+- B wrong: `char` is a **primitive**, so it can't be `null` (it defaults to `\u0000 `).
+- F wrong: a reference type defaults to `null`, **not** the empty string `""`.
+- E correct: a `String` class variable defaults to `null`.
+
+##### Edge cases / traps (when the "fields get defaults" rule bites)
+- **`char` defaults to ` \u0000`, not `null`.** It is a primitive with numeric value `0` - the
+  "null character", which is **not** the same as the `null` reference. *(Verified.)*
+- **Reference types default to `null`**, never to an empty value like `""` or an empty array.
+- **`float`/`double` defaults are `0.0f` / `0.0`** (with a decimal point), not `0`. The exam
+  treats "`0`" as the wrong description for a floating-point default.
+- **`final` fields do NOT auto-take the default.** A blank `final` field must be **explicitly
+  assigned** (an instance `final` in its declaration or a constructor; a `static final` in its
+  declaration or a static initializer). Otherwise it fails to compile:
+  ```java
+  public class F { final int x; }   // DOES NOT COMPILE: "variable x not initialized in the default constructor"
+  ```
+- **Array elements always default, even for a local array**, because the array object lives on
+  the heap: `int[] a = new int[3];` gives `{0, 0, 0}`. (The array *reference* variable, if local,
+  still has to be assigned - here it is, via `new`.)
+- **Method parameters** are locals but are always given a value by the caller, so they never hit
+  the "used before assignment" problem.
+
+### The `final` Keyword
+
+##### Definition
+`final` is a modifier you can apply to **local variables**, **fields** (instance or static),
+and (beyond this chapter) methods/classes. Applied to a variable, it means: **this variable can
+be assigned a value at most once** - after that first assignment, any attempt to reassign it is
+a **compile error**.
+
+##### Where it changes things
+
+**1. Declaration** - no new syntax, just add the modifier before the type:
+```java
+final int y = 10;
+final int[] favoriteNumbers = new int[10];
+```
+
+**2. Initialization - "assign once, then locked"**
+```java
+final int y = 10;
+int x = 20;
+y = x + 10;   // DOES NOT COMPILE - y is final, already assigned
+```
+- **Blank final is legal**: you don't have to initialize at declaration, as long as it is
+  assigned exactly once before it's used, on every path:
+  ```java
+  final int x;   // declared, not yet assigned
+  x = 5;         // OK - the one and only assignment
+  ```
+- **`final` on a reference type locks the reference, not the object's contents.** You can
+  still mutate what it points to; you just can't repoint it:
+  ```java
+  final int[] favoriteNumbers = new int[10];
+  favoriteNumbers[0] = 10;    // OK - mutating the array's contents
+  favoriteNumbers[1] = 20;    // OK
+  favoriteNumbers = null;     // DOES NOT COMPILE - reassigning the reference
+  ```
+
+**3. Default values - this is where `final` actually changes behavior for fields**
+- Normal rule (see *Initialization & Default Values* above): fields silently get a default
+  (`0`, `false`, `null`...) if you don't initialize them.
+- `final` **removes that fallback for fields**. A `final` field must be **explicitly**
+  assigned - inline at declaration, in **every constructor** (instance `final`), or in a
+  **static initializer block** (`static final`). Leaving it unassigned is a compile error,
+  not a silent default:
+  ```java
+  public class F {
+      final int x;   // DOES NOT COMPILE
+                     // "variable x not initialized in the default constructor"
+  }
+  ```
+- For **local** `final` variables, nothing changes vs. the normal rule - locals never had a
+  default to begin with. `final` just adds "and can never be reassigned" on top of "must be
+  assigned before use."
+
+##### Legal vs. illegal - quick reference
+| Code | Legal? | Why |
+|---|---|---|
+| `final int y = 10; y = 20;` | **NO** | reassigning a final variable |
+| `final int x; x = 5;` (single assignment, no other path) | **YES** | blank final, assigned exactly once |
+| `final int[] arr = new int[3]; arr[0] = 1;` | **YES** | mutating contents, not the reference |
+| `final int[] arr = new int[3]; arr = null;` | **NO** | reassigning the reference |
+| `class F { final int x; }` (never assigned anywhere) | **NO** | final field must be explicitly assigned |
+| `class F { final int x = 5; }` | **YES** | assigned at declaration |
+| `class F { final int x; F() { x = 5; } }` | **YES** | assigned in every constructor |
+
+##### Review question
+> Which of the following statements about garbage collection are correct? (Choose all that
+> apply.)
+> A. Calling `System.gc()` is guaranteed to free up memory by destroying objects eligible for
+>    garbage collection.
+> B. Garbage collection runs on a set schedule.
+> C. Garbage collection allows the JVM to reclaim memory for other objects.
+> D. Garbage collection runs when your program has used up half the available memory.
+> E. An object may be eligible for garbage collection but never removed from the heap.
+> F. An object is eligible for garbage collection once no references to it are accessible in
+>    the program.
+> G. Marking a variable `final` means its associated object will never be garbage collected.
+
+**Answer: C, E, F.**
+- **C** correct - that's the whole point of GC: reclaiming heap memory so it can be reused.
+- **E** correct - GC is never *guaranteed* to run (see A/B/D), so an object can stay eligible
+  without ever actually being collected (e.g., the program ends first).
+- **F** correct - this is the definition of eligibility: no reachable references left.
+- A wrong - `System.gc()` is only a *suggestion*; the JVM is free to ignore it.
+- B, D wrong - there's no fixed schedule or memory-usage threshold that triggers GC.
+- **G wrong - this is the `final` trap.** `final` only locks the **reference variable** (you
+  can't repoint it) - it says nothing about the **object's reachability**. A `final` local
+  variable still goes out of scope like any other variable, and once nothing references its
+  object anymore, that object is just as eligible for GC as if it weren't `final`. `final` and
+  garbage-collection eligibility are unrelated concepts.
+
+##### Follow-up: why is a blank `final` *local* OK but a blank `final` *field* is not?
+- **Fields get a default because the JVM zeroes out all object/class memory the instant it's
+  allocated**, before any of your code runs - `final` or not, every field slot starts as
+  `0`/`false`/`null`. So a blank `final` field technically *does* have a value immediately.
+  The compile error isn't "it has no value" - it's a **separate rule**: a `final` field must be
+  **definitely assigned by the end of the constructor**, or you've defeated the point of
+  declaring it a constant (an unintentional silent `0` forever). Java refuses to let that
+  happen silently, so it forces you to write the assignment yourself.
+- **Local variables never get a default at all** - there's no object being zeroed out for them,
+  so `final` isn't "removing a fallback," because there was never one to remove. The rule for
+  locals - `final` or not - is identical: **definite assignment before use**. `final` just adds
+  "and it can never be reassigned again" on top of that pre-existing rule.
+- **One-liner:** fields have defaults to take away (and `final` takes that away); locals never
+  had defaults to begin with, so `final` doesn't change anything structural for them.
+
+### Order of Initialization
+
+##### Calling Constructors
+- `new ClassName()` creates an instance. The constructor's name matches the class name and it
+  has **no return type**. A method with a return type that matches the class name (e.g.
+  `public void Chick() {}`) is **not** a constructor - just a regular method.
+- The constructor's purpose is to initialize fields, though it can contain any code.
+- Fields can *also* be initialized directly on the line where they're declared.
+- If you don't write a constructor yourself, the compiler supplies a "do nothing" default
+  constructor for you.
+
+##### Instance Initializer Blocks
+- Braces `{ }` mark a **code block**. A code block that sits **outside any method**, directly
+  in the class body, is called an **instance initializer**.
+- It only counts as an instance initializer if it's **not** inside a method - a block written
+  inside `main()`, for instance, is just an inner block, not an instance initializer.
+- Counting blocks = counting matched pairs of `{ }`; every class also has one enclosing pair for
+  the class declaration itself.
+
+##### The order rule (the core of this topic)
+Two rules:
+1. **Fields and instance initializer blocks run in the order in which they appear in the file.**
+2. **The constructor runs after *all* fields and instance initializer blocks have run** -
+   regardless of where the constructor is physically written inside the class.
+
+You also can't refer to a field/block before it's been defined in the file:
+```java
+{ System.out.println(name); }   // DOES NOT COMPILE - name isn't declared yet at this point
+private String name = "Fluffy";
+```
+
+**Worked example (Chick):**
+```java
+1: public class Chick {
+2:    private String name = "Fluffy";
+3:    { System.out.println("setting field"); }
+4:    public Chick() {
+5:       name = "Tiny";
+6:       System.out.println("setting constructor");
+7:    }
+8:    public static void main(String[] args) {
+9:       Chick chick = new Chick();
+10:      System.out.println(chick.name); } }
+```
+Output:
+```
+setting field
+setting constructor
+Tiny
+```
+Trace: `main` calls `new Chick()`. Java initializes `name` to `"Fluffy"` (line 2), then runs the
+instance initializer (line 3, prints "setting field") - both in file order. **Only then** does
+the constructor run (lines 4-7): it reassigns `name` to `"Tiny"` and prints "setting
+constructor". Back in `main`, `chick.name` prints `Tiny`.
+
+**Worked example 2 (Egg) - the real trap: the constructor's position in the file is irrelevant:**
+```java
+public class Egg {
+   public Egg() {
+      number = 5;
+   }
+   public static void main(String[] args) {
+      Egg egg = new Egg();
+      System.out.println(egg.number);
+   }
+   private int number = 3;
+   { number = 4; }
+}
+```
+Output: `5`.
+Even though the constructor is *written first* in the file, it still runs *last*. Fields and
+instance-init blocks run in their own file order first (`number = 3`, then `number = 4`), and
+only after both have finished does the constructor run (`number = 5`).
+
+##### Review question (Chapter 1 Review Questions, Q21)
+> What is the output of executing the following class?
+> ```java
+> 1:  public class Salmon {
+> 2:     int count;
+> 3:     { System.out.print(count+"-"); }
+> 4:     { count++; }
+> 5:     public Salmon() {
+> 6:        count = 4;
+> 7:        System.out.print(2+"-");
+> 8:     }
+> 9:     public static void main(String[] args) {
+> 10:       System.out.print(7+"-");
+> 11:       var s = new Salmon();
+> 12:       System.out.print(s.count+"-"); } }
+> ```
+> A. `7-0-2-1-`  B. `7-0-1-`  C. `0-7-2-1-`  D. `7-0-2-4-`  E. `0-7-1-`
+> F. The class does not compile because of line 3.  G. The class does not compile because of
+> line 4.  H. None of the above.
+
+**Answer: D - `7-0-2-4-`.**
+Trace it exactly like Chick/Egg above:
+- `main` runs first (nothing to do with object creation yet): `System.out.print(7+"-")` → `7-`
+- `new Salmon()` triggers the fields/instance-init blocks, in file order:
+  - `count` has no explicit initializer → **field default** `0`
+  - Line 3 block: `System.out.print(count+"-")` → count is still `0` here → `0-`
+  - Line 4 block: `count++` → count becomes `1`
+- **Constructor runs last**, no matter that it's written before the blocks in some other
+  examples - here: `count = 4;` then `System.out.print(2+"-")` → `2-`
+- Back in `main`: `System.out.print(s.count+"-")` → count is now `4` → `4-`
+
+Total output: `7-` + `0-` + `2-` + `4-` = **`7-0-2-4-`**
+
