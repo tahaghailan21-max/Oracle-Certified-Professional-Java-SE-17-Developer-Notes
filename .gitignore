@@ -7,3 +7,15 @@
 # OS files
 .DS_Store
 Thumbs.db
+
+# Node / Next.js / Nextra build artifacts
+node_modules/
+.next/
+next-env.d.ts
+.vercel/
+.mdx/
+
+# Auto-generated from the "Chapter N" notes by scripts/build-content.mjs
+# (content/index.mdx is hand-written and IS committed)
+content/chapter-*.mdx
+content/_meta.js

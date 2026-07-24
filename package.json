@@ -1,0 +1,27 @@
+{
+  "name": "ocp-java-17-notes",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Personal study notes for the OCP Java SE 17 Developer certification (1Z0-829), rendered as a book with Nextra.",
+  "scripts": {
+    "sync": "node scripts/build-content.mjs",
+    "predev": "node scripts/build-content.mjs",
+    "dev": "next dev",
+    "prebuild": "node scripts/build-content.mjs",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "next": "^15.1.0",
+    "nextra": "^4.0.0",
+    "nextra-theme-docs": "^4.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "overrides": {
+    "zod": "4.1.12"
+  },
+  "comments": {
+    "overrides.zod": "nextra 4.6.1 strips `children` before validating Layout props against a schema that still requires it; this only works on zod <=4.1.x, where z.custom() tolerates undefined. zod 4.4.x makes z.custom() nonoptional and breaks every page. Remove this pin once Nextra fixes the schema."
+  }
+}

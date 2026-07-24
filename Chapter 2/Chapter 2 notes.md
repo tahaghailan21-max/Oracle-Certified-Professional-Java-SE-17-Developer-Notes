@@ -21,17 +21,17 @@ Java has three flavors, named by how many operands they act on:
 This is the key warning before precedence is introduced. Which operator you use decides the
 order things happen in - not the order they're written in the line.
 ```java
-int cookies = 4;
-double reward = 3 + 2 * --cookies;
-System.out.print("Zoo animal receives: "+reward+" reward points");
+int stock = 10;
+double cost = 2 + 3 * --stock;
+System.out.print("Updated cost: " + cost);
 ```
 Trace:
-1. `--cookies` runs first: `cookies` goes `4 → 3`, and the *value used* in the expression is `3`.
-2. `2 * 3 = 6`.
-3. `3 + 6 = 9`.
-4. `9` is automatically promoted to `9.0` because `reward` is a `double`.
+1. `--stock` runs first: `stock` goes `10 → 9`, and the *value used* in the expression is `9`.
+2. `3 * 9 = 27`.
+3. `2 + 27 = 29`.
+4. `29` is automatically promoted to `29.0` because `cost` is a `double`.
 
-Output: `Zoo animal receives: 9.0 reward points` (final `cookies` is `3`, final `reward` is `9.0`).
+Output: `Updated cost: 29.0` (final `stock` is `9`, final `cost` is `29.0`).
 
 ### Operator Precedence
 
@@ -39,14 +39,14 @@ Output: `Zoo animal receives: 9.0 reward points` (final `cookies` is `3`, final 
 Just like in math, some operators are evaluated before others regardless of where they sit in
 the expression - this is **operator precedence**.
 ```java
-var perimeter = 2 * height + 2 * length;
+var invoiceTotal = 3 * unitCost + 2 * shippingFee;
 ```
 is really evaluated as:
 ```java
-var perimeter = ((2 * height) + (2 * length));
+var invoiceTotal = ((3 * unitCost) + (2 * shippingFee));
 ```
 `*` has higher precedence than `+`, so both multiplications happen before the addition. `=` has
-the *lowest* precedence of all, so the assignment to `perimeter` happens last.
+the *lowest* precedence of all, so the assignment to `invoiceTotal` happens last.
 
 ##### Table - Order of operator precedence
 | Operator                        | Symbols and examples                                                       | Evaluation    |
@@ -81,8 +81,9 @@ first no matter where it's physically written.
 **The Evaluation column only comes into play when two operators from the *same row* appear next
 to each other in one expression.** It tells you which side Java starts grouping from. Across
 *different* rows there is never a direction question at all - the higher row simply always goes
-first. That's the general rule; the rest of this section walks through every row of Table 2.1 to
-make it concrete, one operator at a time, always pointing out *why* we start where we start.
+first. That's the general rule; the rest of this section walks through every row of the
+precedence table above to make it concrete, one operator at a time, always pointing out *why*
+we start where we start.
 
 ### Walking Through Every Operator in the table
 
@@ -276,3 +277,30 @@ Runnable r = () -> System.out.println("hi");
 
 ##### One-line mental model
 **Row = "who goes first" (precedence between different operators). Evaluation column = "when two operators from the same row are stacked together, which one do I group starting from" (associativity) - it only ever settles ties inside one row, never a competition between rows.**
+
+### Adding Parentheses
+
+The precedence table applies "unless overridden with parentheses." Wrapping part of an
+expression in `()` forces that part to be evaluated first, overriding whatever the table's row
+order would otherwise dictate.
+```java
+int total = 3 * 4 + 2 * 5 - 6;         // normal precedence: * before +/-  -> 12 + 10 - 6 = 16
+int total = 3 * ((4 + 2) * 5 - 6);     // parentheses force 4+2 first      -> 3 * (6*5 - 6)
+                                        //                                  -> 3 * (30 - 6)
+                                        //                                  -> 3 * 24 = 72
+```
+Same values, same operators, same order in the line - **only the parentheses changed**, and the
+result went from `16` to `72`. That's the whole point: parentheses let you explicitly pick what
+gets evaluated first instead of relying on (or fighting against) the table.
+
+**Syntax rule - parentheses must be balanced:** every `(` needs a matching `)`, and reading
+left to right, a `)` must always close a `(` that came before it.
+```java
+long score = 1 + ((4 * 2) / 4;       // DOES NOT COMPILE - unbalanced (missing a closing paren)
+int total2 = (6 + 1) + 4) / (3 * 2;  // DOES NOT COMPILE - mismatched, not properly nested
+```
+Also: **Java does not allow `[]` in place of `()`** for grouping expressions - brackets are only
+for arrays.
+```java
+short value = 5 + [(3 * 2) + 1];  // DOES NOT COMPILE - brackets aren't valid here
+```
