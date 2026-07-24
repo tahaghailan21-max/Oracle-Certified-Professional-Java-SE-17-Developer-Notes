@@ -44,10 +44,12 @@ const meta = { index: { title: 'Home', theme: { breadcrumb: false, toc: false } 
 
 for (const ch of chapters) {
   const subtitle = CHAPTER_TITLES[ch.num]
-  const title = subtitle ? `Chapter ${ch.num} — ${subtitle}` : `Chapter ${ch.num}`
+  const title = subtitle ? `Chapter ${ch.num}: ${subtitle}` : `Chapter ${ch.num}`
   const slug = `chapter-${ch.num}`
   const body = readFileSync(ch.mdPath, 'utf8')
-  const out = `---\ntitle: ${title}\n---\n\n${body}`
+  // Quote the title: it contains a colon (e.g. "Chapter 1: Building Blocks"),
+  // which is a mapping indicator in unquoted YAML and would fail to parse.
+  const out = `---\ntitle: "${title}"\n---\n\n${body}`
   writeFileSync(join(CONTENT_DIR, `${slug}.mdx`), out)
   meta[slug] = title
   console.log(`[build-content] ${ch.name} -> content/${slug}.mdx  ("${title}")`)

@@ -5,8 +5,8 @@ import 'nextra-theme-docs/style.css'
 
 export const metadata = {
   title: {
-    default: 'OCP Java SE 17 — Study Notes',
-    template: '%s — OCP Java SE 17 Notes'
+    default: 'OCP Java SE 17 Study Notes',
+    template: '%s | OCP Java SE 17 Notes'
   },
   description:
     'Personal study notes for the Oracle Certified Professional: Java SE 17 Developer certification (Exam 1Z0-829).'
@@ -14,12 +14,7 @@ export const metadata = {
 
 const navbar = (
   <Navbar
-    logo={
-      <span style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
-        <span style={{ fontSize: '1.3rem' }}>📖</span>
-        <span style={{ fontWeight: 700 }}>OCP Java SE 17 — Notes</span>
-      </span>
-    }
+    logo={<span style={{ fontWeight: 700 }}>OCP Java SE 17 Notes</span>}
     projectLink="https://github.com/tahaghailan21-max/Oracle-Certified-Professional-Java-SE-17-Developer-Notes"
   />
 )
