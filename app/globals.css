@@ -1,0 +1,107 @@
+/* Project overrides on top of nextra-theme-docs. Imported after the theme CSS
+   in app/layout.jsx so these rules win. */
+
+/* ------------------------------------------------------------------ *
+ * Navbar theme toggle: match the size of the GitHub icon (24px)
+ * ------------------------------------------------------------------ */
+.nextra-theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  border: none;
+  background: none;
+  color: currentColor;
+  cursor: pointer;
+  opacity: 0.9;
+  transition: opacity 0.15s ease;
+}
+.nextra-theme-toggle:hover {
+  opacity: 1;
+}
+.nextra-theme-toggle svg {
+  width: 24px;
+  height: 24px;
+}
+/* Icon swap driven by the `dark` class on <html> (no JS flash). */
+.theme-toggle-moon {
+  display: none;
+}
+.dark .theme-toggle-sun {
+  display: none;
+}
+.dark .theme-toggle-moon {
+  display: inline;
+}
+
+/* ------------------------------------------------------------------ *
+ * Remove the theme dropdown from the sidebar and the mobile menu.
+ * The single toggle lives in the navbar now.
+ * ------------------------------------------------------------------ */
+.nextra-sidebar-footer button[aria-haspopup='listbox'] {
+  display: none !important;
+}
+/* The mobile menu footer only held the theme switch — hide the now-empty bar
+   (it has no collapse button, unlike the desktop sidebar footer). */
+.nextra-sidebar-footer:not(:has(button[aria-controls])) {
+  display: none !important;
+}
+
+/* ------------------------------------------------------------------ *
+ * Sidebar: shadow the right edge so its boundary is clear.
+ * ------------------------------------------------------------------ */
+.nextra-sidebar {
+  box-shadow: 6px 0 16px -10px rgba(0, 0, 0, 0.25);
+}
+.dark .nextra-sidebar {
+  box-shadow: 6px 0 18px -8px rgba(0, 0, 0, 0.7);
+}
+
+/* ------------------------------------------------------------------ *
+ * Move the collapse control to the TOP of the sidebar and make it an
+ * obvious "Hide sidebar" affordance.
+ * ------------------------------------------------------------------ */
+.nextra-sidebar > .nextra-sidebar-footer {
+  order: -1;
+  position: sticky;
+  top: 0;
+  bottom: auto;
+  margin-top: 0;
+  padding-top: 0.6rem;
+  padding-bottom: 0.6rem;
+  border-top: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+.dark .nextra-sidebar > .nextra-sidebar-footer {
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+.nextra-sidebar > .nextra-sidebar-footer button[aria-controls] {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 0.375rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+.nextra-sidebar > .nextra-sidebar-footer button[aria-controls]:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+.dark .nextra-sidebar > .nextra-sidebar-footer button[aria-controls]:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.nextra-sidebar > .nextra-sidebar-footer button[aria-controls] svg {
+  width: 18px;
+  height: 18px;
+}
+/* Label the control only when the sidebar is expanded (aria-expanded="true"),
+   pushed to the left so the arrow stays at the right edge. */
+.nextra-sidebar
+  > .nextra-sidebar-footer
+  button[aria-controls][aria-expanded='true']::before {
+  content: 'Hide sidebar';
+  margin-right: auto;
+  color: currentColor;
+}

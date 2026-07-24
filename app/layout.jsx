@@ -1,8 +1,10 @@
-import { Footer, Layout, Navbar, ThemeSwitch } from 'nextra-theme-docs'
+import { Footer, Layout, Navbar } from 'nextra-theme-docs'
 import { Head } from 'nextra/components'
 import { getPageMap } from 'nextra/page-map'
 import { BookIcon } from '../components/icons'
+import { ThemeToggle } from '../components/theme-toggle'
 import 'nextra-theme-docs/style.css'
+import './globals.css'
 
 export const metadata = {
   title: {
@@ -23,7 +25,7 @@ const navbar = (
     }
     projectLink="https://github.com/tahaghailan21-max/Oracle-Certified-Professional-Java-SE-17-Developer-Notes"
   >
-    <ThemeSwitch lite />
+    <ThemeToggle />
   </Navbar>
 )
 
