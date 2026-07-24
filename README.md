@@ -25,3 +25,8 @@ a first read — the tricky, exam-tested details.
   examples)
 - Default Imports & Method Parameters (what's auto-imported besides `java.lang`, and whether
   Java supports default parameter values)
+
+### Chapter 2 — Operators
+- Understanding Java Operators (operator/operand/result terminology, unary/binary/ternary)
+- Operator Precedence (Table 2.1, precedence vs. associativity, and a full row-by-row
+  walkthrough of every operator with worked "precedence in context" examples)
