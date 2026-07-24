@@ -1,12 +1,13 @@
-import { Footer, Layout, Navbar } from 'nextra-theme-docs'
+import { Footer, Layout, Navbar, ThemeSwitch } from 'nextra-theme-docs'
 import { Head } from 'nextra/components'
 import { getPageMap } from 'nextra/page-map'
+import { BookIcon } from '../components/icons'
 import 'nextra-theme-docs/style.css'
 
 export const metadata = {
   title: {
-    default: 'OCP Java SE 17 Study Notes',
-    template: '%s | OCP Java SE 17 Notes'
+    default: 'Java Notes',
+    template: '%s | Java Notes'
   },
   description:
     'Personal study notes for the Oracle Certified Professional: Java SE 17 Developer certification (Exam 1Z0-829).'
@@ -14,9 +15,16 @@ export const metadata = {
 
 const navbar = (
   <Navbar
-    logo={<span style={{ fontWeight: 700 }}>OCP Java SE 17 Notes</span>}
+    logo={
+      <span style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontWeight: 700 }}>
+        <BookIcon />
+        OCP Java SE 17 Notes
+      </span>
+    }
     projectLink="https://github.com/tahaghailan21-max/Oracle-Certified-Professional-Java-SE-17-Developer-Notes"
-  />
+  >
+    <ThemeSwitch lite />
+  </Navbar>
 )
 
 const footer = (
@@ -38,6 +46,7 @@ export default async function RootLayout({ children }) {
           pageMap={await getPageMap()}
           docsRepositoryBase="https://github.com/tahaghailan21-max/Oracle-Certified-Professional-Java-SE-17-Developer-Notes/tree/main"
           editLink="Edit this page on GitHub"
+          search={null}
           sidebar={{ defaultMenuCollapseLevel: 1 }}
         >
           {children}
