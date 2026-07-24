@@ -19,3 +19,5 @@ next-env.d.ts
 # (content/index.mdx is hand-written and IS committed)
 content/chapter-*.mdx
 content/_meta.js
+.vercel
+.env*
