@@ -30,3 +30,55 @@ a first read — the tricky, exam-tested details.
 - Understanding Java Operators (operator/operand/result terminology, unary/binary/ternary)
 - Operator Precedence (Table 2.1, precedence vs. associativity, and a full row-by-row
   walkthrough of every operator with worked "precedence in context" examples)
+
+## How to add a chapter
+
+The published site (Nextra on Vercel) is generated automatically from the
+`Chapter N` folders by `scripts/build-content.mjs`, so those folders are the
+single source of truth. Adding a chapter takes a few steps.
+
+**1. Create the folder and notes file**
+
+- Create a folder named exactly `Chapter N` at the repo root, for example
+  `Chapter 3`: capital `C`, a space, then the number.
+- Put the notes in a **single** `.md` file inside it (any filename works, e.g.
+  `Chapter 3 notes.md`).
+- Write plain Markdown. Keep braces `{}` and generics such as `List<String>`
+  inside code fences or inline backticks. Avoid emojis and em dashes.
+
+**2. (Optional) Give it a title**
+
+Add a line to `CHAPTER_TITLES` in `scripts/build-content.mjs`:
+
+```js
+const CHAPTER_TITLES = {
+  1: 'Building Blocks',
+  2: 'Operators',
+  3: 'Making Decisions'   // new
+}
+```
+
+Without this the chapter still works; the sidebar and tab just show
+`Chapter 3` instead of `Chapter 3: Making Decisions`.
+
+**3. Commit and push**
+
+```bash
+git add "Chapter 3" scripts/build-content.mjs
+git commit -m "Add Chapter 3 notes"
+git push
+```
+
+Vercel auto-deploys on push. Its build runs the `prebuild` step, which
+regenerates `content/chapter-3.mdx` and the sidebar order. The chapter then
+appears at `/chapter-3`.
+
+**Notes**
+
+- Do not edit the `content/` folder directly. It is generated and gitignored;
+  edit only the `Chapter N` folders.
+- Preview locally with `npm run dev`, or run `npm run sync` to regenerate
+  `content/` without starting the server.
+- Editing an existing chapter is the same flow: edit its `.md`, commit, push.
+- Landing-page cards have custom icons for the existing chapters only. Ask if
+  you want a matching icon added for a new one.
