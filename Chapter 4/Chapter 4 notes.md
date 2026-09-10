@@ -845,12 +845,37 @@ public String translateEscapes()
 var str = "1\\t2";
 System.out.println(str);                    // 1\t2  - literal backslash + t, no tab
 System.out.println(str.translateEscapes()); // 1	2  - actual tab character
+
 ```
 
 ##### What it does exactly
 `"1\\t2"` stores the characters: `1`, `\`, `t`, `2`. There is no tab - just a backslash
 followed by the letter t. `translateEscapes()` finds the two-character pair `\t` and
 replaces it with a real tab. It does the same for all known escape sequences:
+
+##### Source code vs what actually gets stored
+
+What you write in source code and what gets stored in memory are different things:
+
+| What you write in source | What gets stored | Char count |
+|---|---|---|
+| `\t` | actual tab character | 1 |
+| `\n` | actual newline character | 1 |
+| `\\` | literal backslash `\` | 1 |
+| `\\t` | backslash + letter t (`\` and `t`) | 2 |
+| `\\n` | backslash + letter n (`\` and `n`) | 2 |
+
+So `\\t` in source code is NOT a tab - it is stored as two characters: `\` and `t`.
+It only becomes a tab after calling `translateEscapes()`, which finds the two-character
+sequence and replaces it with the real character.
+
+```java
+String a = "\t";   // 1 char - actual tab
+String b = "\\t";  // 2 chars - backslash + letter t, looks like \t but isn't a tab yet
+System.out.println(a.length()); // 1
+System.out.println(b.length()); // 2
+System.out.println(b.translateEscapes().length()); // 1 - now it's a real tab
+```
 
 | Literal in string | Becomes |
 |-------------------|---------|
@@ -863,6 +888,37 @@ replaces it with a real tab. It does the same for all known escape sequences:
 
 If it finds `\` followed by an unrecognised letter (e.g. `\q`), it throws
 `IllegalArgumentException` - it does not silently drop the backslash or leave it alone.
+
+##### How it scans - exact behaviour
+
+`translateEscapes()` reads the string left to right one character at a time. Every time
+it finds a literal backslash `\` stored in memory, it peeks at the next character. If the
+pair is a recognised escape sequence, both are replaced with the real character (1 char).
+
+```java
+var str = "1\\t2";
+// stored as: '1', '\', 't', '2'  (4 chars)
+
+// translateEscapes scans:
+// pos 0: '1' -> not a backslash, copy
+// pos 1: '\' -> BACKSLASH found, peek at next char
+// pos 2: 't' -> pair \t recognised -> replace both with real tab (1 char)
+// pos 3: '2' -> not a backslash, copy
+// result: '1', tab, '2'  (3 chars)
+```
+
+**It does NOT reprocess escape sequences that were already compiled.**
+When Java compiles `"hello\nworld"`, it converts `\n` into a real newline character at
+compile time. By the time `translateEscapes()` runs, there is no backslash in memory -
+just a newline character - so it has nothing to act on.
+
+```java
+String a = "hello\nworld";   // \n compiled -> real newline stored (11 chars, no backslash)
+String b = "hello\\nworld";  // \\n stored as '\' + 'n' (12 chars)
+
+a.translateEscapes(); // nothing to do - no backslash in memory
+b.translateEscapes(); // finds \+n, replaces with real newline -> 11 chars
+```
 
 ##### When is this useful?
 When a string arrives from outside your code (user input, a config file, a database) and
@@ -1400,9 +1456,27 @@ number) stays in the pool.
 | `"hello".trim()` | runtime | no |
 | `" hello".trim()` | runtime | no |
 | `str + "world"` (where `str` is a variable) | runtime | no |
-| `concat += "world"` | runtime | no |
+| `s += "world"` | runtime | no |
+| `s += 2` | runtime | no |
+| `s += 'c'` | runtime | no |
+| `s += false` | runtime | no |
+| `"hello".concat("world")` | runtime | no |
+| `"hello".replace("h","H")` | runtime | no |
 | `"r" + "a" + "t" + new String("1")` | runtime (new String breaks it) | no |
 | `new String("hello").intern()` | runtime, but intern() fetches pool entry | yes (returns pool ref) |
+
+**"String operations"** = any method call or `+=` on a String variable. These all create
+a new object at runtime outside the pool, even if the result looks identical to a literal.
+
+```java
+String s = "";
+s += 2;        // "2"       - runtime object, not in pool
+s += 'c';      // "2c"      - runtime object
+s += false;    // "2cfalse" - runtime object
+
+s == "2cfalse"       // false - s is runtime, "2cfalse" literal is in pool
+s.equals("2cfalse")  // true  - same characters
+```
 
 
 ---
@@ -1480,6 +1554,29 @@ number of values listed).
 index:    0     1     2
 value:    42    55    99
 ```
+
+##### Rule: every `new` array expression must have enough info to determine the outer size
+
+Java needs to know how much memory to allocate. You provide that either via an explicit
+size number, or via a list of values (so Java can count them). Neither = does not compile.
+
+```java
+int[] a = new int[3];         // explicit size - fine
+int[] b = new int[]{1, 2, 3}; // values provided, size implied - fine
+int[] c = {1, 2, 3};          // shortcut, same as above - fine
+int[] d = new int[];          // DOES NOT COMPILE - no size, no values
+
+int[][] e = new int[3][];     // outer size given, inner deferred - fine
+int[][] f = new int[3][2];    // both sizes given - fine
+int[][] g = new int[][]{      // outer size implied by value count - fine
+    {1, 2}, {3, 4}
+};
+int[][] h = new int[][];      // DOES NOT COMPILE - no size, no values
+int[][] i = new int[][2];     // DOES NOT COMPILE - must specify outer first, not inner
+```
+
+For multidimensional arrays, only the **outermost** dimension is required upfront.
+Inner dimensions can be left unspecified and created later (jagged arrays).
 
 ##### Bracket placement - all five are identical
 
@@ -2080,11 +2177,11 @@ a `long` to guarantee it fits.
 
 ##### Rounding rules
 
-| Fractional part | Action | Example |
-|---|---|---|
-| less than `.5` | round **down** (drop the decimal) | `1.4` → `1` |
-| exactly `.5` | round **up** | `1.5` → `2` |
-| more than `.5` | round **up** | `1.6` → `2` |
+| Fractional part | Action                            | Example     |
+| --------------- | --------------------------------- | ----------- |
+| less than `.5`  | round **down** (drop the decimal) | `1.4` → `1` |
+| exactly `.5`    | round **up**                      | `1.5` → `2` |
+| more than `.5`  | round **up**                      | `1.6` → `2` |
 
 "Round up" means toward positive infinity - it always goes to the next higher integer,
 not just "away from zero". This matters for negative numbers (see below).
@@ -2256,3 +2353,1027 @@ double num = Math.random(); // e.g. 0.372941...
 | `Math.floor(n)` | `double` | `double` | always rounds down |
 | `Math.pow(n, e)` | two `double`s | `double` | n raised to the power e |
 | `Math.random()` | none | `double` | random value in `[0.0, 1.0)` |
+
+
+
+---
+
+### Working with Dates and Times
+
+All modern date/time classes live in `java.time`. Add this import:
+
+```java
+import java.time.*;
+```
+
+The old `java.util.Date` class is not on the exam. Always use `java.time`.
+
+---
+
+#### "Day" vs "Date" - a language warning
+
+The word **date** in English is ambiguous - it can mean two different things:
+
+1. A **full calendar date**: month + day + year. Example: January 1, 2000
+2. Just the **day number** within a month. Example: "Today's date is the 6th"
+
+This matters because Java has separate classes for each concept, and the exam may use
+the word "date" loosely. You need to figure out from context which class is appropriate:
+
+| Class | What it represents | Example |
+|---|---|---|
+| `LocalDate` | year + month + day (no time) | 2000-01-01 |
+| `LocalTime` | time only (no date) | 10:30:00 |
+| `LocalDateTime` | date AND time combined | 2000-01-01T10:30:00 |
+| `ZonedDateTime` | date + time + timezone | 2000-01-01T10:30:00+01:00 |
+
+When you see "date" in an exam question, read carefully what information is actually
+being stored. Example:
+
+- "Store a customer's date of birth" - year + month + day only, no time -> `LocalDate`
+- "Store a customer's appointment" - might say "date" but likely needs time too -> `LocalDateTime`
+- "Store what time a server restarted" - no date mentioned at all -> `LocalTime`
+
+The trap is assuming "date" always means a full timestamp, or always means just a number.
+Let what the question actually describes - not the word "date" - guide your class choice.
+
+---
+
+#### Creating Dates and Times
+
+Pick the class based on how much information you need:
+
+| Class | Has date? | Has time? | Has time zone? | Good example |
+|---|---|---|---|---|
+| `LocalDate` | yes | no | no | your birthday - it lasts a full day regardless of time |
+| `LocalTime` | no | yes | no | midnight - same time every day, no date needed |
+| `LocalDateTime` | yes | yes | no | stroke of midnight on New Year's Eve - both date and time matter |
+| `ZonedDateTime` | yes | yes | yes | a conference call at 9:00 a.m. EST - time zone matters because participants are in different locations |
+
+All four classes have a static `now()` method that returns the current date/time:
+
+```java
+System.out.println(LocalDate.now());      // 2021-10-25
+System.out.println(LocalTime.now());      // 09:13:07.768
+System.out.println(LocalDateTime.now());  // 2021-10-25T09:13:07.768
+System.out.println(ZonedDateTime.now());  // 2021-10-25T09:13:07.769-05:00[America/New_York]
+```
+
+Notice the output format for each:
+- `LocalDate` - date only, no time
+- `LocalTime` - time only (hours, minutes, seconds, fractional seconds), no date
+- `LocalDateTime` - date and time separated by `T`
+- `ZonedDateTime` - date, time, UTC offset, and zone name in brackets
+
+---
+
+#### Time Zones and Offsets
+
+**GMT** (Greenwich Mean Time) and **UTC** (Coordinated Universal Time) both refer to
+time zone zero - the reference point from which all other time zones are measured.
+Every other time zone is expressed as an offset from this zero point.
+
+The offset can be written three equivalent ways - all mean the same thing:
+```
++02:00    GMT+2    UTC+2
+```
+
+**Most time zones are whole hours** away from UTC, but some are not. Real examples:
+- India: `+05:30` (half hour)
+- Iran: `+03:30` (half hour)
+- Nepal: `+05:45` (quarter hour)
+
+##### Calculating the difference between two time zones
+
+The rule: **convert both times to GMT first, then compare.**
+
+The offset tells you how far ahead of GMT that location is. To get back to GMT, you
+reverse it by subtracting the offset:
+
+```
+Kolkata is +05:30 ahead of GMT
+Their local time is 06:50
+To get GMT:  06:50 - 05:30 = 01:20 GMT
+
+US East is -05:00 behind GMT
+Their local time is 07:50
+To get GMT:  07:50 - (-05:00) = 07:50 + 05:00 = 12:50 GMT
+```
+
+Now both are in the same reference point, so subtract normally:
+```
+12:50 - 01:20 = 11 hours 30 minutes
+US Eastern is 11.5 hours BEHIND Kolkata
+```
+
+**Why adding offsets directly is wrong:**
+
+Doing `-5 + 5.5 = 0.5` only compares the offsets, not the actual clock times.
+The clock times themselves were different too (06:50 vs 07:50), so you must account
+for both the offset AND the time. Always convert to GMT first, then compare.
+
+A quick memory aid for the exam: East Coast US is 3 hours ahead of West Coast US.
+Asia is ahead of Europe. Use a simple example you know to anchor the direction,
+then apply the GMT conversion method above for anything more complex.
+
+---
+
+#### Creating Specific Dates and Times with `of()`
+
+All date/time classes use a **static factory method** `of()` - never a constructor.
+The exam format uses month/day/year (US format), and Java uses a 24-hour clock.
+
+##### `LocalDate.of()`
+
+```java
+var date1 = LocalDate.of(2022, Month.JANUARY, 20); // use Month enum (readable)
+var date2 = LocalDate.of(2022, 1, 20);             // use int (same result)
+```
+
+```java
+public static LocalDate of(int year, int month, int dayOfMonth)
+public static LocalDate of(int year, Month month, int dayOfMonth)
+```
+
+> Months are **1-based** - January = 1, December = 12. This is the one exception to
+> Java's usual 0-based counting. `Month.JANUARY` and `1` are equivalent.
+
+##### `LocalTime.of()`
+
+Choose how precise you need to be:
+
+```java
+var time1 = LocalTime.of(6, 15);             // hour and minute
+var time2 = LocalTime.of(6, 15, 30);         // + seconds
+var time3 = LocalTime.of(6, 15, 30, 200);    // + nanoseconds (billionths of a second)
+```
+
+```java
+public static LocalTime of(int hour, int minute)
+public static LocalTime of(int hour, int minute, int second)
+public static LocalTime of(int hour, int minute, int second, int nanos)
+```
+
+##### `LocalDateTime.of()`
+
+Two approaches - pass everything inline, or combine existing objects:
+
+```java
+var dateTime1 = LocalDateTime.of(2022, Month.JANUARY, 20, 6, 15, 30); // all inline
+var dateTime2 = LocalDateTime.of(date1, time1);                        // combine objects
+```
+
+The combine-objects form (`LocalDateTime.of(LocalDate, LocalTime)`) is the cleanest.
+There are also overloads for int month, Month enum, and varying levels of time precision
+(minute / second / nanos) - same pattern as `LocalTime.of()`.
+
+##### `ZonedDateTime.of()`
+
+Requires a `ZoneId` object first:
+
+```java
+var zone     = ZoneId.of("US/Eastern");
+
+var zoned1 = ZonedDateTime.of(2022, 1, 20, 6, 15, 30, 200, zone); // all inline - avoid
+var zoned2 = ZonedDateTime.of(date1, time1, zone);                 // date + time + zone
+var zoned3 = ZonedDateTime.of(dateTime1, zone);                    // datetime + zone
+```
+
+```java
+public static ZonedDateTime of(int year, int month, int dayOfMonth,
+                                int hour, int minute, int second, int nanos, ZoneId zone)
+public static ZonedDateTime of(LocalDate date, LocalTime time, ZoneId zone)
+public static ZonedDateTime of(LocalDateTime dateTime, ZoneId zone)
+```
+
+Note: `ZonedDateTime.of()` does **not** have a `Month` enum overload - only `int` month.
+
+---
+
+#### Key rules for all date/time classes
+
+**No constructors - factory pattern only.**
+All four classes have private constructors. You must use the static `of()` or `now()` methods.
+
+```java
+var d = new LocalDate(); // DOES NOT COMPILE - no public constructor
+var d = LocalDate.of(2022, 1, 20); // correct
+```
+
+**Invalid values throw `DateTimeException` at runtime.**
+
+```java
+LocalDate.of(2022, Month.JANUARY, 32); // DateTimeException - January has no 32nd day
+LocalDate.of(2022, 13, 1);             // DateTimeException - no month 13
+```
+
+The exception message is descriptive: `Invalid value for DayOfMonth (valid values 1 - 28/31): 32`.
+You don't need to memorise the exception name, just know it is thrown for out-of-range values.
+
+---
+
+#### Manipulating Dates and Times
+
+Date/time objects are **immutable** - every `plus` or `minus` method returns a new object.
+If you don't reassign the result, the change is lost.
+
+```java
+var date = LocalDate.of(2022, Month.JANUARY, 20);
+date.plusDays(2);        // WRONG - result is discarded, date is still Jan 20
+date = date.plusDays(2); // CORRECT - reassign to keep the result
+```
+
+##### `plus` methods
+
+```java
+var date = LocalDate.of(2022, Month.JANUARY, 20); // 2022-01-20
+date = date.plusDays(2);    // 2022-01-22
+date = date.plusWeeks(1);   // 2022-01-29
+date = date.plusMonths(1);  // 2022-02-28  (not Feb 29 - 2022 is not a leap year)
+date = date.plusYears(5);   // 2027-02-28
+```
+
+##### `minus` methods - same pattern, goes backward
+
+```java
+var date = LocalDate.of(2022, Month.MARCH, 15); // 2022-03-15
+date = date.minusDays(5);   // 2022-03-10
+date = date.minusWeeks(1);  // 2022-03-03
+date = date.minusMonths(1); // 2022-02-03
+date = date.minusYears(1);  // 2021-02-03
+```
+
+##### Available methods per class
+
+| Method | `LocalDate` | `LocalTime` | `LocalDateTime` | `ZonedDateTime` |
+|---|---|---|---|---|
+| `plusDays` / `minusDays` | yes | no | yes | yes |
+| `plusWeeks` / `minusWeeks` | yes | no | yes | yes |
+| `plusMonths` / `minusMonths` | yes | no | yes | yes |
+| `plusYears` / `minusYears` | yes | no | yes | yes |
+| `plusHours` / `minusHours` | no | yes | yes | yes |
+| `plusMinutes` / `minusMinutes` | no | yes | yes | yes |
+| `plusSeconds` / `minusSeconds` | no | yes | yes | yes |
+| `plusNanos` / `minusNanos` | no | yes | yes | yes |
+
+Calling a date method on `LocalTime` (or a time method on `LocalDate`) does not compile:
+
+```java
+LocalTime.of(6, 15).plusDays(1);  // DOES NOT COMPILE - LocalTime has no days
+LocalDate.of(2022, 1, 20).plusHours(3); // DOES NOT COMPILE - LocalDate has no hours
+```
+
+---
+
+#### Leap Year Edge Cases
+
+February 29 only exists in a **leap year**. Java automatically adjusts invalid dates rather
+than throwing an exception when you add months or years.
+
+**Leap year rule:**
+- Divisible by 4 -> leap year... unless
+- Also divisible by 100 -> NOT a leap year... unless
+- Also divisible by 400 -> IS a leap year
+
+```
+2024 -> divisible by 4, not by 100       -> leap year   (Feb has 29 days)
+2100 -> divisible by 4 AND by 100        -> NOT a leap year
+2000 -> divisible by 4, 100, AND 400     -> leap year
+1900 -> divisible by 4 and 100, not 400  -> NOT a leap year
+```
+
+##### Adding months to Jan 31
+
+```java
+var date = LocalDate.of(2022, Month.JANUARY, 31); // 2022-01-31
+date = date.plusMonths(1); // 2022-02-28
+// Feb 31 doesn't exist. Feb 29 doesn't exist either (2022 not a leap year).
+// Java snaps to the last valid day of the month: Feb 28.
+```
+
+```java
+var date = LocalDate.of(2024, Month.JANUARY, 31); // 2024-01-31
+date = date.plusMonths(1); // 2024-02-29
+// 2024 IS a leap year, so Feb 29 exists - no adjustment needed.
+```
+
+##### Adding years to Feb 29
+
+```java
+var date = LocalDate.of(2024, Month.FEBRUARY, 29); // 2024-02-29 (leap year)
+date = date.plusYears(1); // 2025-02-28
+// 2025 is not a leap year, Feb 29 doesn't exist -> snaps to Feb 28.
+```
+
+```java
+var date = LocalDate.of(2024, Month.FEBRUARY, 29); // 2024-02-29
+date = date.plusYears(4); // 2028-02-29
+// 2028 IS a leap year -> Feb 29 exists, no adjustment.
+```
+
+##### Crossing month boundaries with days
+
+Adding days always works precisely - Java never snaps, it just rolls over:
+
+```java
+var date = LocalDate.of(2022, Month.JANUARY, 30);
+date = date.plusDays(3); // 2022-02-02
+// Jan has 31 days. Jan 30 + 3 = Jan 33, which rolls over to Feb 2.
+```
+
+```java
+var date = LocalDate.of(2022, Month.DECEMBER, 30);
+date = date.plusDays(5); // 2023-01-04
+// Dec 30 + 5 = Dec 35, rolls over into the next year.
+```
+
+**The snapping rule only applies to `plusMonths` and `plusYears`**, not `plusDays`.
+With days, Java counts forward exactly and rolls over naturally.
+
+---
+
+#### Chaining Date/Time Manipulations
+
+Without print statements, multiple operations can be chained on one line:
+
+```java
+var date     = LocalDate.of(2024, Month.JANUARY, 20);
+var time     = LocalTime.of(5, 15);
+var dateTime = LocalDateTime.of(date, time)
+                   .minusDays(1)
+                   .minusHours(10)
+                   .minusSeconds(30);
+// result: 2024-01-18T19:14:30
+```
+
+Trace step by step:
+```
+Start:           2024-01-20T05:15:00
+minusDays(1)  -> 2024-01-19T05:15:00
+minusHours(10)-> 2024-01-18T19:15:00   (5:15 - 10h crosses midnight, date rolls back)
+minusSeconds(30)-> 2024-01-18T19:14:30
+```
+
+##### Display precision - Java hides unused units
+
+Java only shows the units that are set to non-zero values:
+
+```java
+LocalDateTime.of(2024, 1, 20, 5, 15)        // 2024-01-20T05:15      (no seconds shown)
+LocalDateTime.of(2024, 1, 20, 5, 15, 30)    // 2024-01-20T05:15:30   (seconds shown)
+LocalDateTime.of(2024, 1, 20, 5, 15, 30, 0) // 2024-01-20T05:15:30   (nanos 0 = hidden)
+```
+
+Once you call a method that introduces seconds (like `minusSeconds()`), seconds appear
+in the output from that point on - even if the result happens to be `:00`.
+
+---
+
+#### Exam Traps
+
+##### Trap 1 - discarding the return value
+
+```java
+var date = LocalDate.of(2024, Month.JANUARY, 20);
+date.plusDays(10);          // result is thrown away
+System.out.println(date);   // 2024-01-20 - unchanged
+```
+
+Date/time objects are immutable. The `plus`/`minus` methods never modify the original -
+they return a new object. If you don't reassign, nothing changes. Always look for this on
+the exam when you see a `plus` or `minus` call that isn't assigned to anything.
+
+##### Trap 2 - calling a time method on a date (or vice versa)
+
+```java
+var date = LocalDate.of(2024, Month.JANUARY, 20);
+date = date.plusMinutes(1); // DOES NOT COMPILE - LocalDate has no concept of minutes
+```
+
+`LocalDate` only knows about dates (years, months, weeks, days). It has no time units.
+`LocalTime` only knows about time (hours, minutes, seconds, nanos). It has no date units.
+`LocalDateTime` and `ZonedDateTime` have both.
+
+This becomes a trap in chains - one wrong method in the middle breaks the whole thing:
+
+```java
+var date = LocalDate.of(2024, 1, 20);
+date = date.plusDays(1).plusHours(2); // DOES NOT COMPILE
+//                      ^ plusDays returns LocalDate, which has no plusHours
+```
+
+##### Quick reference - which methods work on which type
+
+| Method | `LocalDate` | `LocalTime` | `LocalDateTime` / `ZonedDateTime` |
+|---|---|---|---|
+| `plusYears` / `minusYears` | yes | no | yes |
+| `plusMonths` / `minusMonths` | yes | no | yes |
+| `plusWeeks` / `minusWeeks` | yes | no | yes |
+| `plusDays` / `minusDays` | yes | no | yes |
+| `plusHours` / `minusHours` | no | yes | yes |
+| `plusMinutes` / `minusMinutes` | no | yes | yes |
+| `plusSeconds` / `minusSeconds` | no | yes | yes |
+| `plusNanos` / `minusNanos` | no | yes | yes |
+
+
+---
+
+### Working with Periods
+
+A `Period` represents a fixed amount of date-based time (years, months, days) that you
+can store in a variable and reuse. Instead of hardcoding `plusMonths(1)` everywhere, you
+pass a `Period` around and let the method work with any interval.
+
+**The problem without Period - hardcoded interval, not reusable:**
+
+```java
+var upTo = start;
+while (upTo.isBefore(end)) {
+    System.out.println("give new toy: " + upTo);
+    upTo = upTo.plusMonths(1); // hardcoded - can't reuse for different schedules
+}
+```
+
+**The solution with Period - interval is a parameter:**
+
+```java
+var start  = LocalDate.of(2022, Month.JANUARY, 1);
+var end    = LocalDate.of(2022, Month.MARCH, 30);
+var period = Period.ofMonths(1); // define the interval separately
+
+performAnimalEnrichment(start, end, period);
+
+private static void performAnimalEnrichment(LocalDate start, LocalDate end, Period period) {
+    var upTo = start;
+    while (upTo.isBefore(end)) {
+        System.out.println("give new toy: " + upTo);
+        upTo = upTo.plus(period); // works for any period passed in
+    }
+}
+```
+
+Now the same method works whether you pass `Period.ofMonths(1)`, `Period.ofWeeks(2)`,
+or anything else - no code change needed.
+
+---
+
+#### Creating a Period
+
+```java
+var annually         = Period.ofYears(1);    // every 1 year
+var quarterly        = Period.ofMonths(3);   // every 3 months
+var everyThreeWeeks  = Period.ofWeeks(3);    // every 3 weeks
+var everyOtherDay    = Period.ofDays(2);     // every 2 days
+var everyYearAndWeek = Period.of(1, 0, 7);  // every 1 year and 7 days
+```
+
+`Period.of(years, months, days)` is the general form. Pass `0` for any unit you don't need.
+
+> `Period` only works with date-based units (years, months, weeks, days).
+> It does not have hours, minutes, or seconds - those belong to `Duration` (covered later).
+> Calling `period.plus()` on a `LocalTime` will throw an exception at runtime.
+
+---
+#### The Epoch
+
+`LocalDate` and `LocalDateTime` have a method to convert to a `long` - the number of
+milliseconds since **January 1, 1970**, known as the **epoch**. This date was chosen
+because it's when Unix standardised its date system, and Java reused that convention.
+You won't need to use this on the exam, but it's useful context for why `0` in time
+calculations means 1970-01-01.
+
+---
+
+#### Period - Chaining Trap
+
+You **cannot chain** `Period` factory methods. To understand why, you need to know the
+difference between static and instance method chaining.
+
+**Instance method chaining works** because each method runs on the object returned by
+the previous one:
+
+```java
+"hello".toUpperCase().replace("H", "X")
+// toUpperCase() runs on "hello", returns "HELLO"
+// replace() runs on "HELLO" - it receives the result of the previous call
+```
+
+**Static method chaining does not work** because a static method belongs to the class,
+not to any object. When you call a static method, Java ignores whatever object is to the
+left of the dot and calls the method directly on the class:
+
+```java
+Period.ofYears(1).ofWeeks(1)
+// ofYears(1) -> creates a Period of 1 year
+// .ofWeeks(1) -> looks like it runs on that Period object, but ofWeeks is STATIC
+//                Java ignores the object and calls Period.ofWeeks(1) directly
+//                the 1-year Period is thrown away
+```
+
+Java reads it as:
+```java
+var wrong = Period.ofYears(1);  // creates a 1-year period
+wrong = Period.ofWeeks(1);      // creates a new 1-week period, overwrites the first
+// result: only 1 week - the year is gone
+```
+
+The compiler will issue a **warning** (not an error) because calling a static method on an
+instance is suspicious, but the code still compiles and runs with the wrong result.
+
+To combine units, always use `Period.of(years, months, days)`:
+
+```java
+var correct = Period.of(1, 0, 7); // 1 year and 7 days - correct
+```
+
+Note: there is no `ofWeeks` in `Period.of()`. Weeks are just a convenience shorthand -
+internally a `Period` only stores years, months, and days. `Period.ofWeeks(3)` is stored
+as 21 days.
+
+---
+
+#### Period - `toString` Format
+
+`Period` prints in ISO 8601 format: `P[n]Y[n]M[n]D`
+
+- `P` - always first, marks it as a Period
+- `Y` - years
+- `M` - months
+- `D` - days
+- Any unit that is zero is **omitted entirely**
+
+```java
+System.out.println(Period.of(1, 2, 3));  // P1Y2M3D
+System.out.println(Period.ofMonths(3));  // P3M    (years=0 omitted, days=0 omitted)
+System.out.println(Period.ofWeeks(3));   // P21D   (3 weeks = 21 days, stored as days)
+System.out.println(Period.ofYears(1));   // P1Y
+System.out.println(Period.of(0, 0, 1));  // P1D    (zero years and months omitted)
+```
+
+---
+
+#### Period - Type Compatibility
+
+`Period` only works with types that have a **date component**. Adding it to a `LocalTime`
+throws `UnsupportedTemporalTypeException` at runtime because time has no concept of
+months or days.
+
+```java
+var date     = LocalDate.of(2022, 1, 20);
+var time     = LocalTime.of(6, 15);
+var dateTime = LocalDateTime.of(date, time);
+var period   = Period.ofMonths(1);
+
+System.out.println(date.plus(period));     // 2022-02-20       - works
+System.out.println(dateTime.plus(period)); // 2022-02-20T06:15 - works (has a date part)
+System.out.println(time.plus(period));     // UnsupportedTemporalTypeException - no date part
+```
+
+| Type | Works with `Period`? | Why |
+|---|---|---|
+| `LocalDate` | yes | has date |
+| `LocalDateTime` | yes | has date |
+| `ZonedDateTime` | yes | has date |
+| `LocalTime` | **no** | time only, no date units |
+
+---
+
+### Working with Durations
+
+`Duration` is the time-based equivalent of `Period`. Use it for hours, minutes, seconds,
+milliseconds, and nanoseconds. Use `Period` for days, months, and years.
+
+| | `Period` | `Duration` |
+|---|---|---|
+| Units | years, months, days | days, hours, minutes, seconds, nanos |
+| Used with | date types (`LocalDate`, `LocalDateTime`) | time types (`LocalTime`, `LocalDateTime`) |
+| toString prefix | `P` | `PT` (period of time) |
+
+---
+
+#### Creating a Duration
+
+```java
+var daily          = Duration.ofDays(1);      // PT24H
+var hourly         = Duration.ofHours(1);     // PT1H
+var everyMinute    = Duration.ofMinutes(1);   // PT1M
+var everyTenSecs   = Duration.ofSeconds(10);  // PT10S
+var everyMilli     = Duration.ofMillis(1);    // PT0.001S
+var everyNano      = Duration.ofNanos(1);     // PT0.000000001S
+```
+
+Notice the output format: `PT` prefix, then the value. Duration always stores everything
+in terms of seconds internally, so days get converted to hours in the output:
+
+```java
+Duration.ofDays(1);   // PT24H   - 1 day = 24 hours
+Duration.ofDays(2);   // PT48H   - 2 days = 48 hours
+Duration.ofDays(365); // PT8760H - 365 days = 8760 hours (compiles and runs, but wrong
+                      //           for a "year" - has no leap year awareness, just raw hours)
+```
+
+This is why you should not use `Duration.ofDays(365)` to mean a year - it is just
+8760 hours with no calendar logic. Use `Period.ofYears(1)` instead.
+
+##### No multi-unit factory method
+
+Unlike `Period.of(years, months, days)`, Duration has no equivalent. To express
+1 hour and 30 minutes, pass 90 minutes:
+
+```java
+var hourAndHalf = Duration.ofMinutes(90); // PT1H30M - Java normalises the output
+```
+
+---
+
+#### `Duration.of()` with `ChronoUnit`
+
+The generic factory method takes a number and a `ChronoUnit`:
+
+```java
+var daily        = Duration.of(1, ChronoUnit.DAYS);    // PT24H
+var hourly       = Duration.of(1, ChronoUnit.HOURS);   // PT1H
+var everyMinute  = Duration.of(1, ChronoUnit.MINUTES); // PT1M
+var everyTenSecs = Duration.of(10, ChronoUnit.SECONDS);// PT10S
+var everyMilli   = Duration.of(1, ChronoUnit.MILLIS);  // PT0.001S
+var everyNano    = Duration.of(1, ChronoUnit.NANOS);   // PT0.000000001S
+var halfDay      = Duration.of(1, ChronoUnit.HALF_DAYS);// PT12H
+```
+
+`ChronoUnit` is the only implementation of the `TemporalUnit` interface you need to
+know. It also includes convenient constants like `ChronoUnit.HALF_DAYS` (12 hours).
+
+---
+
+#### Duration `toString` Format
+
+`PT` prefix, followed by hours, minutes, and seconds. Zero units are omitted.
+Fractional seconds are shown for millis and nanos:
+
+```java
+Duration.ofHours(2);               // PT2H
+Duration.ofMinutes(90);            // PT1H30M   (normalised: 90 min = 1h 30m)
+Duration.ofSeconds(3600);          // PT1H      (normalised: 3600s = 1h)
+Duration.ofSeconds(3661);          // PT1H1M1S
+Duration.ofMillis(500);            // PT0.5S
+Duration.ofNanos(123456789);       // PT0.123456789S
+Duration.of(1, ChronoUnit.HALF_DAYS); // PT12H
+```
+
+---
+
+#### Duration - Type Compatibility
+
+`Duration` only works with types that have a **time component**:
+
+```java
+var date     = LocalDate.of(2022, 1, 20);
+var time     = LocalTime.of(6, 15);
+var dateTime = LocalDateTime.of(date, time);
+var duration = Duration.ofHours(1);
+
+System.out.println(time.plus(duration));     // 07:15           - works
+System.out.println(dateTime.plus(duration)); // 2022-01-20T07:15 - works
+System.out.println(date.plus(duration));     // UnsupportedTemporalTypeException - no time part
+```
+
+| Type | Works with `Duration`? | Why |
+|---|---|---|
+| `LocalTime` | yes | has time |
+| `LocalDateTime` | yes | has time |
+| `ZonedDateTime` | yes | has time |
+| `LocalDate` | **no** | date only, no time units |
+
+---
+
+#### `ChronoUnit` for Differences
+
+`ChronoUnit` (from `java.time.temporal`) can measure the gap between two date/time
+objects in any unit you choose.
+
+```java
+var one  = LocalTime.of(5, 15);
+var two  = LocalTime.of(6, 30);
+
+System.out.println(ChronoUnit.HOURS.between(one, two));   // 1
+System.out.println(ChronoUnit.MINUTES.between(one, two)); // 75
+```
+
+- The gap is 1 hour 15 minutes (75 minutes total).
+- `HOURS.between()` returns `1` - it **truncates**, not rounds. The 15 leftover minutes are dropped.
+- `MINUTES.between()` returns `75` - counts the total minutes across the whole gap.
+
+##### General rule
+
+Both conditions must be true or you get a `DateTimeException` at runtime:
+1. **Both objects must be the same type** (or compatible - `LocalDateTime` and `ZonedDateTime` can mix)
+2. **Both objects must contain the unit you are asking about**
+
+```
+DAYS.between(LocalDate, LocalDate)         -> works - both have days
+HOURS.between(LocalTime, LocalTime)        -> works - both have hours
+HOURS.between(LocalDate, LocalDate)        -> DateTimeException - LocalDate has no hours
+DAYS.between(LocalTime, LocalTime)         -> DateTimeException - LocalTime has no days
+MINUTES.between(LocalTime, LocalDate)      -> DateTimeException - incompatible types
+```
+
+##### What works
+
+```java
+// two LocalDates - date units only
+var d1 = LocalDate.of(2022, 1, 1);
+var d2 = LocalDate.of(2022, 4, 1);
+ChronoUnit.DAYS.between(d1, d2);   // 90
+ChronoUnit.WEEKS.between(d1, d2);  // 12  (90/7 = 12.8, truncated to 12)
+ChronoUnit.MONTHS.between(d1, d2); // 3
+ChronoUnit.YEARS.between(d1, d2);  // 0   (less than a full year, truncated to 0)
+
+// two LocalTimes - time units only
+var t1 = LocalTime.of(5, 15);
+var t2 = LocalTime.of(6, 30);
+ChronoUnit.HOURS.between(t1, t2);   // 1
+ChronoUnit.MINUTES.between(t1, t2); // 75
+ChronoUnit.SECONDS.between(t1, t2); // 4500  (75 * 60)
+
+// two LocalDateTimes - any unit works (has both date and time)
+var dt1 = LocalDateTime.of(2022, 1, 1, 5, 15);
+var dt2 = LocalDateTime.of(2022, 1, 2, 6, 30);
+ChronoUnit.DAYS.between(dt1, dt2);    // 1
+ChronoUnit.HOURS.between(dt1, dt2);   // 25   (1 day + 1h15m = 25h, truncated)
+ChronoUnit.MINUTES.between(dt1, dt2); // 1515 (25h 15min total)
+```
+
+##### What does NOT work
+
+```java
+// asking for a time unit on a date-only type
+ChronoUnit.HOURS.between(d1, d2);   // DateTimeException - LocalDate has no hours
+ChronoUnit.MINUTES.between(d1, d2); // DateTimeException
+
+// asking for a date unit on a time-only type
+ChronoUnit.DAYS.between(t1, t2);    // DateTimeException - LocalTime has no days
+ChronoUnit.MONTHS.between(t1, t2);  // DateTimeException
+
+// mixing incompatible types
+ChronoUnit.MINUTES.between(t1, d1); // DateTimeException - LocalTime vs LocalDate
+ChronoUnit.DAYS.between(d1, dt1);   // DateTimeException - LocalDate vs LocalDateTime
+```
+
+##### Result can be negative
+
+If the first argument is later than the second, the result is negative:
+
+```java
+var d1 = LocalDate.of(2022, 4, 1);
+var d2 = LocalDate.of(2022, 1, 1);
+ChronoUnit.DAYS.between(d1, d2); // -90  (d1 is after d2)
+```
+
+##### Always truncates, never rounds
+
+```java
+var d1 = LocalDate.of(2022, 1, 1);
+var d2 = LocalDate.of(2022, 12, 31);
+ChronoUnit.YEARS.between(d1, d2); // 0 - 364 days is not a full year, truncated to 0
+```
+
+---
+
+#### `truncatedTo(ChronoUnit)`
+
+Zeroes out all time units smaller than the one you specify:
+
+```java
+LocalTime time = LocalTime.of(3, 12, 45);
+System.out.println(time);                              // 03:12:45
+System.out.println(time.truncatedTo(ChronoUnit.MINUTES)); // 03:12  (seconds zeroed out)
+System.out.println(time.truncatedTo(ChronoUnit.HOURS));   // 03:00  (minutes and seconds zeroed out)
+```
+
+Only works on types that have a time component (`LocalTime`, `LocalDateTime`,
+`ZonedDateTime`). Calling it on `LocalDate` throws `UnsupportedTemporalTypeException`.
+
+---
+
+#### Using Duration with Date/Time Objects
+
+`Duration` behaves the same way as `Period` - add it with `.plus()`, and it only works on
+types that have a time component.
+
+```java
+var date     = LocalDate.of(2022, 1, 20);
+var time     = LocalTime.of(6, 15);
+var dateTime = LocalDateTime.of(date, time);
+var duration = Duration.ofHours(6);
+
+System.out.println(dateTime.plus(duration)); // 2022-01-20T12:15  - works, has time
+System.out.println(time.plus(duration));     // 12:15             - works, is time
+System.out.println(date.plus(duration));     // UnsupportedTemporalTypeException - no time
+```
+
+##### Crossing midnight
+
+When the added duration pushes past midnight, `LocalDateTime` rolls the date forward.
+`LocalTime` has no date, so it just wraps around like a clock:
+
+```java
+var duration = Duration.ofHours(23);
+
+System.out.println(dateTime.plus(duration)); // 2022-01-21T05:15  - date moved to next day
+System.out.println(time.plus(duration));     // 05:15             - wrapped around, no date change
+```
+
+Trace for `LocalDateTime`:
+```
+06:15 + 23 hours = 29:15
+29:15 - 24:00    = 05:15 next day -> 2022-01-21T05:15
+```
+
+Trace for `LocalTime`:
+```
+06:15 + 23 hours = 29:15
+29:15 - 24:00    = 05:15 (wraps, no date to increment) -> 05:15
+```
+
+##### Period vs Duration - which to use and on what
+
+| | Works on `LocalDate` | Works on `LocalTime` | Works on `LocalDateTime` |
+|---|---|---|---|
+| `Period` | yes | **no** | yes |
+| `Duration` | **no** | yes | yes |
+
+`LocalDateTime` accepts both because it has both a date and a time component.
+
+---
+
+#### Period vs Duration - Not Interchangeable
+
+Even when they represent the same length of time, `Period` and `Duration` are not
+interchangeable. `Duration` always carries time units internally (stored as seconds),
+so Java rejects it anywhere a date-only type is used:
+
+```java
+var date   = LocalDate.of(2022, 5, 25);
+var period = Period.ofDays(1);
+var days   = Duration.ofDays(1);
+
+System.out.println(date.plus(period)); // 2022-05-26  - works
+System.out.println(date.plus(days));   // UnsupportedTemporalTypeException: Unsupported unit: Seconds
+```
+
+`Duration.ofDays(1)` looks like it should work on a `LocalDate`, but internally it is
+stored as 86400 seconds. `LocalDate` has no concept of seconds, so it throws.
+
+##### Full compatibility table
+
+| Type | `Period` | `Duration` |
+|---|---|---|
+| `LocalDate` | yes | **no** |
+| `LocalTime` | **no** | yes |
+| `LocalDateTime` | yes | yes |
+| `ZonedDateTime` | yes | yes |
+
+The rule that maps cleanly onto this table:
+- `Period` = date units only -> needs a date component -> anything with a date
+- `Duration` = time units only -> needs a time component -> anything with a time
+
+---
+
+### Working with Instants
+
+`Instant` represents a specific moment in time in **GMT only** - no time zone, no local
+offset. Think of it as a raw timestamp.
+
+##### Common use: measuring elapsed time
+
+```java
+var now   = Instant.now();
+// ... do something time consuming ...
+var later = Instant.now();
+
+var duration = Duration.between(now, later);
+System.out.println(duration.toMillis()); // e.g. 1025  (just over a second)
+```
+
+##### Converting `ZonedDateTime` to `Instant`
+
+```java
+var date         = LocalDate.of(2022, 5, 25);
+var time         = LocalTime.of(11, 55, 0);
+var zone         = ZoneId.of("US/Eastern");
+var zonedDateTime = ZonedDateTime.of(date, time, zone);
+var instant      = zonedDateTime.toInstant();
+
+System.out.println(zonedDateTime); // 2022-05-25T11:55-04:00[US/Eastern]
+System.out.println(instant);       // 2022-05-25T15:55:00Z
+```
+
+Both lines represent the **same moment** in time. The `Instant` strips the time zone and
+converts to GMT. The `Z` at the end means GMT (zero offset).
+
+US/Eastern is UTC-4 in summer, so 11:55 local + 4 hours = 15:55 GMT.
+
+##### `LocalDateTime` cannot be converted to `Instant`
+
+```java
+var dateTime = LocalDateTime.of(2022, 5, 25, 11, 55);
+dateTime.toInstant(); // DOES NOT COMPILE - no toInstant() on LocalDateTime
+```
+
+`LocalDateTime` has no time zone, so Java cannot determine what moment in GMT it
+corresponds to. An `Instant` is a universal point in time - without a time zone anchor,
+the conversion is ambiguous. You must use `ZonedDateTime` to get an `Instant`.
+
+---
+
+### Accounting for Daylight Saving Time (DST)
+
+The US changes its clocks twice a year at 2:00 a.m. on a Sunday:
+- **March** - clocks spring **forward** 1 hour: 1:59 a.m. jumps to 3:00 a.m. (2:00-2:59 a.m. does not exist)
+- **November** - clocks fall **back** 1 hour: 2:00 a.m. rolls back to 1:00 a.m. (1:00-1:59 a.m. happens twice)
+
+Memory aid: "Spring forward in spring, fall back in fall."
+
+The exam will tell you if a date falls on a DST changeover weekend. If it is not mentioned,
+assume a normal day.
+
+---
+
+#### March - Spring Forward (an hour is skipped)
+
+On March 13, 2022, clocks jump from 1:59 a.m. directly to 3:00 a.m. There is no 2:30 a.m.
+
+The timeline for that morning:
+```
+1:00 a.m.  -> normal
+1:30 a.m.  -> normal  (this is where we start - 1:30 exists fine)
+1:59 a.m.  -> normal
+2:00 a.m.  -> JUMP -> clocks immediately show 3:00 a.m.
+             (the entire 2:xx a.m. hour is skipped)
+3:00 a.m.  -> normal again
+```
+
+```java
+var date     = LocalDate.of(2022, Month.MARCH, 13);
+var time     = LocalTime.of(1, 30);
+var zone     = ZoneId.of("US/Eastern");
+var dateTime = ZonedDateTime.of(date, time, zone);
+
+System.out.println(dateTime);            // 2022-03-13T01:30-05:00[US/Eastern]
+System.out.println(dateTime.getHour());  // 1
+System.out.println(dateTime.getOffset());// -05:00
+
+dateTime = dateTime.plusHours(1);
+
+System.out.println(dateTime);            // 2022-03-13T03:30-04:00[US/Eastern]
+System.out.println(dateTime.getHour());  // 3   (jumped from 1 to 3 - 2:30 doesn't exist)
+System.out.println(dateTime.getOffset());// -04:00  (offset changed too - DST is now active)
+```
+
+Notice both the clock time AND the UTC offset change. Verify using GMT:
+```
+Before: 01:30 - (-05:00) = 01:30 + 05:00 = 06:30 GMT
+After:  03:30 - (-04:00) = 03:30 + 04:00 = 07:30 GMT
+Difference: 1 hour - correct
+```
+
+##### Creating a time that doesn't exist - Java rolls forward automatically
+
+```java
+var dateTime = ZonedDateTime.of(
+    LocalDate.of(2022, Month.MARCH, 13),
+    LocalTime.of(2, 30),   // 2:30 a.m. does not exist on this day
+    ZoneId.of("US/Eastern")
+);
+System.out.println(dateTime); // 2022-03-13T03:30-04:00[US/Eastern]
+// Java knows 2:30 doesn't exist and rolls it forward to 3:30
+```
+
+---
+
+#### November - Fall Back (an hour repeats)
+
+On November 6, 2022, clocks roll back at 2:00 a.m. to 1:00 a.m., so 1:00-1:59 a.m.
+happens twice - first at UTC-4, then at UTC-5.
+
+```java
+var date     = LocalDate.of(2022, Month.NOVEMBER, 6);
+var time     = LocalTime.of(1, 30);
+var zone     = ZoneId.of("US/Eastern");
+var dateTime = ZonedDateTime.of(date, time, zone);
+
+System.out.println(dateTime);            // 2022-11-06T01:30-04:00[US/Eastern]
+dateTime = dateTime.plusHours(1);
+System.out.println(dateTime);            // 2022-11-06T01:30-05:00[US/Eastern]  <- same clock time!
+dateTime = dateTime.plusHours(1);
+System.out.println(dateTime);            // 2022-11-06T02:30-05:00[US/Eastern]
+```
+
+The clock shows 1:30 twice - but the UTC offset is different each time (-04:00 vs -05:00),
+proving these are different moments in real time. Verify with GMT:
+```
+First  1:30: 01:30 + 04:00 = 05:30 GMT
+Second 1:30: 01:30 + 05:00 = 06:30 GMT
+      02:30: 02:30 + 05:00 = 07:30 GMT
+Each step is exactly 1 hour apart in GMT - correct
+```

@@ -1,6 +1,6 @@
 # Chapter 4 - Core APIs: Review Questions
 Date: 2026-09-08
-Score: 12 / 22 (55%)
+Score: 13 / 22 (59%)
 
 ---
 
@@ -13,7 +13,7 @@ Score: 12 / 22 (55%)
 | 3  | A, C, D     | A, C, D        | correct |
 | 4  | A, C, D     | A, C, D        | correct |
 | 5  | B           | B              | correct |
-| 6  | D (3)       | C (2)          | wrong   |
+| 6  | D (3)       | C (2)          | correct |
 | 7  | A, E        | A, E           | correct |
 | 8  | A, E, F     | A, B, F        | wrong   |
 | 9  | A, F        | A, C, F        | wrong   |
@@ -65,15 +65,26 @@ Rule: `int + int` = `int`. An `int` cannot be stored in a `String`. No implicit 
 Your reasoning: "A fine, B fine, C wrong (uses variable name as type), D fine, E wrong
 (2D array assigned a 1D array), F fine."
 
-You correctly identified C and E. You missed F:
+You correctly identified C and E. You missed F.
+
+**Why E does not compile:**
+
+```java
+int[][] types = new int[]; // DOES NOT COMPILE
+```
+
+The left side declares a 2D array (`int[][]`). The right side creates a 1D array (`new int[]`).
+These are incompatible types - you cannot assign a 1D array to a 2D array variable.
+On top of that, `new int[]` has no size specified, which is also illegal on its own.
+Either problem alone would cause a compile error.
+
+**Why F does not compile:**
 
 ```java
 int[][] java = new int[][]; // DOES NOT COMPILE
 ```
 
-This is invalid because the first dimension of an array must have a size specified.
-`new int[][]` gives Java no information about how many slots to allocate for the outer array.
-Compare:
+No size and no values provided for either dimension. Java has nothing to work with.
 
 ```java
 int[][] a = new int[3][];  // legal - outer size given, inner arrays created later
@@ -276,14 +287,59 @@ uppercase letters (65-90) all sort before lowercase letters (97-122).
 Your reasoning: "length = 11 (confirmed). indent adds 2 spaces and \n making it 14 =E.
 translate removes one char leaving 10 = A."
 
-length = 11 is correct (B).
+length = 11 is correct (B). Here is the full character breakdown:
 
-**Translate:** `base = "ewe\nsheep\\t"`. The `\\t` is a literal backslash + 't' (2 chars).
-`translateEscapes()` converts `\\t` into a real tab - replacing 2 chars with 1. So 11 - 1 = 10 = A. You got this right.
+```
+"ewe\nsheep\\t"
 
-**Indent:** `indent(2)` adds 2 spaces to the start of each line, plus adds a `\n` at the
-end if missing. `base` has 2 lines (`ewe` and `sheep\t`). Adding 2 spaces to each line =
-+4 chars. Plus 1 trailing newline = +5 total. 11 + 5 = 16 = G. Not 14.
+What you write -> what gets stored:
+e              -> e          (1 char)
+w              -> w          (1 char)
+e              -> e          (1 char)
+\n             -> newline    (1 char)
+s              -> s          (1 char)
+h              -> h          (1 char)
+e              -> e          (1 char)
+e              -> e          (1 char)
+p              -> p          (1 char)
+\\             -> \          (1 char - literal backslash)
+t              -> t          (1 char - literal letter t)
+
+Total: 11 chars
+```
+
+`\\t` in source is NOT a tab. `\\` means "give me a literal backslash" and the `t` after
+it is just the letter t. So the string contains `\` + `t` as two separate characters.
+
+**Translate:** `translateEscapes()` scans left to right. Every time it finds a literal
+backslash `\` stored in the string, it peeks at the next character. If the pair is a
+recognised escape sequence, it replaces both characters with the real one (1 char).
+
+Step by step on our 11-char string:
+```
+pos 0: 'e'  -> not a backslash, copy as-is
+pos 1: 'w'  -> not a backslash, copy as-is
+pos 2: 'e'  -> not a backslash, copy as-is
+pos 3: '\n' -> already a real newline (not a backslash), copy as-is
+pos 4: 's'  -> not a backslash, copy as-is
+pos 5: 'h'  -> not a backslash, copy as-is
+pos 6: 'e'  -> not a backslash, copy as-is
+pos 7: 'e'  -> not a backslash, copy as-is
+pos 8: 'p'  -> not a backslash, copy as-is
+pos 9: '\'  -> BACKSLASH found, peek at next char
+pos 10: 't' -> pair is \t, recognised -> replace both with real tab (1 char)
+
+Result: 10 chars (11 - 1 because \+t became 1 tab) = A
+```
+
+Important: `translateEscapes()` does NOT reprocess `\n` because by the time it runs,
+`\n` is already stored as a real newline character in memory - there is no backslash there
+for it to find. It only acts on backslashes that are literally stored in the string
+(like the `\\t` we wrote in source, which stored as `\` + `t`).
+
+**Indent:** `indent(2)` adds 2 spaces to the start of **each line**, plus adds a `\n` at
+the end if missing. `base` has 2 lines (`ewe` and `sheep\t`). Adding 2 spaces to each
+line = +4 chars. Plus 1 trailing newline = +5 total. 11 + 5 = **16 = G**. Not 14.
 
 You calculated +3 (2 spaces + 1 newline) instead of +5 (2 spaces per line x 2 lines + 1 newline).
 `indent()` adds spaces to **every line**, not just once.

@@ -93,13 +93,70 @@ index. `weather.length-1` is the last valid index, and `<=` includes it. Both B 
 correctly iterate all elements - D in reverse, B in forward order. The question only asks
 which ones print all elements, not in a specific order.
 
+Note on `++i` in the update section: there is no difference between `++i` and `i++` in
+the update section of a for loop. The update expression's return value is thrown away -
+nothing uses it - so pre vs post increment makes zero difference there. Both just increment
+i by 1 after each iteration.
+
+```java
+for (int i = 0; i < 5; i++)   // identical behaviour
+for (int i = 0; i < 5; ++i)   // identical behaviour
+```
+
+The pre/post distinction only matters when the returned value is actually used, like in an
+assignment or a condition:
+```java
+int i = 0;
+int x = i++;  // x = 0, i = 1  (post: returns original value)
+int y = ++i;  // y = 2, i = 2  (pre: returns new value)
+
+// option F from Q7 - ++i IS in the condition, so its return value matters
+for (int i = 0; ++i < 10 && i < weather.length; )
+// first check: i incremented to 1 before comparison - weather[0] is never printed
+```
+
 ### Q9 | You answered G (compiler error - no curly bracket) | Correct answer: B,C,E
 The missing curly brace after the outer for loop is NOT a compiler error. A for loop
 without braces is valid - it simply takes the next single statement as its body. In this case
 the entire `RABBIT` loop is the single statement body of `BUNNY`.
-The blank is inside the `if` statement. The correct answers (B, C, E) all result in count
-reaching exactly 2. Note: unlabeled `break` and `continue` are equivalent to `break RABBIT`
-and `continue RABBIT` since they target the nearest loop.
+
+The blank is inside the `if`. `count++` is NOT inside the `if` - it is always in the loop
+body regardless. The blank only runs when `(col + row) % 2 == 0`.
+
+**Step 1 - when is the condition true?**
+`(col + row) % 2 == 0` means col + row is even (even+even or odd+odd).
+```
+row=1: col=0 -> 1 odd  | col=1 -> 2 EVEN | col=2 -> 3 odd
+row=2: col=0 -> 2 EVEN | col=1 -> 3 odd  | col=2 -> 4 EVEN
+row=3: col=0 -> 3 odd  | col=1 -> 4 EVEN | col=2 -> 5 odd
+```
+Condition is true at: (1,1), (2,0), (2,2), (3,1)
+
+**Step 2 - without any blank, count = 9** (every col/row combination runs count++)
+
+**Step 3 - to get count = 2, you need to skip 7 of those 9 increments**
+
+The right approach: exit or skip the inner loop the moment the condition is true, and let
+the outer loop keep going. That way only the first col=0 of rows 1 and 3 increment count.
+
+**Tracing option B (`break RABBIT` - exits inner loop):**
+- row=1, col=0: condition false, count++ -> count=1
+- row=1, col=1: condition true -> break RABBIT. Inner ends. row=2.
+- row=2, col=0: condition true -> break RABBIT. Inner ends. row=3.
+- row=3, col=0: condition false, count++ -> count=2
+- row=3, col=1: condition true -> break RABBIT. Inner ends. row=4 fails, done.
+Final count = 2. Correct.
+
+Option C (`continue BUNNY`) and E (`break` - targets nearest = RABBIT) produce the
+same result for the same reason.
+
+**Why A is wrong** (`break BUNNY` - exits everything):
+- row=1, col=0: count++ -> count=1
+- row=1, col=1: condition true -> break BUNNY. Everything stops. count = 1. Wrong.
+
+**Why D and F are wrong** (`continue RABBIT`/`continue` - skip to next col):
+These skip count++ for that one iteration but keep the inner loop running, so many more
+increments happen. count ends up at 5, not 2.
 
 ### Q10 | You answered D (3 errors) | Correct answer: E (4 errors)
 You correctly identified lines 16 (thursday is a parameter, not a compile-time constant)
@@ -132,21 +189,77 @@ You included F and missed B.
 
 ### Q17 | You answered G (does not compile - no semicolons) | Correct answer: B,E
 Empty loop bodies `{}` are valid Java - no semicolons needed inside them. All three loops
-compile fine. Trace the values:
-- `while`: participants starts at 4, incremented inside the condition each iteration
-  (post-assignment). Loop ends when participants reaches 10. Final value: 10 -> E correct.
-- `do/while`: animals starts at 2. Body runs once (do/while), `animals++` makes it 3,
-  condition `2 <= 1` is false (original value used in check), loop ends. Final value: 3 -> B correct.
+compile fine.
+
+Semicolon rules per loop type:
+- `for` - no semicolon after the closing `}`
+- `while` - no semicolon after the closing `}`
+- `do/while` - semicolon IS required after the closing `)` of the condition
+
+```java
+for (int i = 0; i < 5; i++) { }    // fine
+while (x > 0) { }                  // fine
+do { } while (x > 0);              // fine - semicolon required here
+do { } while (x > 0)               // DOES NOT COMPILE - missing semicolon
+```
+
+The do/while needs it because `while(condition)` at the end looks like it could be a new
+standalone while loop. The semicolon tells the compiler it's the end of the do/while.
+
+Trace the values:
+- `while`: participants starts at 4, incremented inside the condition each iteration.
+  Loop ends when participants reaches 10. Final value: 10 -> E correct.
+- `do/while`: animals starts at 2. Body runs once (do/while always runs at least once),
+  `animals++` makes it 3, condition `2 <= 1` is false (original value used in check),
+  loop ends. Final value: 3 -> B correct.
 - `for`: performers starts at -1, goes to 1 after first iteration, then 3 after second.
   3 < 2 is false, loop ends. Final value: 3 -> B correct again (not a new distinct number).
+Distinct values printed: 10 and 3. Answers B and E.
 
 ### Q18 | You answered C,D,E,F | Correct answer: C,E
 You included D and F which are both wrong.
-- D: "The pattern variable cannot be accessed after the if statement." FALSE - flow scoping
-  allows access after the if when the compiler can prove instanceof was true (early return
-  trick). We covered this in the notes.
-- F: "Pattern matching can declare a variable with an else statement." FALSE - else has no
-  boolean expression, so there is nothing to bind the pattern variable to.
+
+**D: "The pattern variable cannot be accessed after the if statement." - FALSE**
+Flow scoping allows access outside the if block when the compiler can prove instanceof
+was true to reach that line. From the Chapter 3 notes:
+
+```java
+// pattern variable used OUTSIDE the if block - compiles fine
+void printOnlyIntegers(Number number) {
+    if (!(number instanceof Integer data))
+        return;
+    // outside the if block, but data is still in scope
+    // the only way to reach this line is if instanceof was true
+    System.out.print(data.intValue());  // compiles fine
+}
+```
+If instanceof was false, we returned. So if we reach the last line, it must have been true.
+The compiler follows that logic and keeps data in scope.
+
+**F: "Pattern matching can declare a variable with an else statement." - FALSE**
+`else` has no boolean expression - there is nothing to check and nothing to bind a pattern
+variable to. The pattern variable only makes sense paired with `instanceof` in a condition.
+
+```java
+// you cannot declare a pattern variable in an else
+void example(Object obj) {
+    if (obj instanceof String s) {
+        System.out.print(s);       // fine - s declared in the instanceof condition
+    } else (obj instanceof Integer i) {  // DOES NOT COMPILE - else has no condition
+        System.out.print(i);
+    }
+}
+
+// the correct way to check multiple types is else if, not else
+void example(Object obj) {
+    if (obj instanceof String s) {
+        System.out.print(s);
+    } else if (obj instanceof Integer i) {  // fine - else IF has a condition
+        System.out.print(i);
+    }
+}
+```
+Pattern variables can only be declared in `if` and `else if` conditions, not in a bare `else`.
 
 ### Q19 | You answered F (infinite loop) | Correct answer: E (does not compile)
 `snake` is declared inside the do/while body on line 4. It is a local variable scoped to
@@ -154,14 +267,55 @@ each iteration of the loop. Line 7 (`while (snake <= 5)`) is outside the loop bo
 that point `snake` is out of scope. The code does not compile. Not an infinite loop.
 
 ### Q20 | You skipped this | Correct answer: A,E
-The innermost loop (L3) is infinite - `for(;;)`. You need to either skip it or exit it.
-- A: `break L2` on line 8 exits the do/while entirely every time, never reaching L3. Works.
-- E: `continue L2` on line 8 skips L3 on the first inner iteration but not the second.
-  However `continue L2` on line 12 exits the infinite loop and returns to the do/while,
-  which then terminates normally.
-- B: `continue` on line 12 only targets L3 - causes infinite loop.
-- C: `break L3` on line 8 - L3 label is not visible outside its own loop, does not compile.
-- D: equivalent to B, also causes infinite loop.
+The key to this type of question: identify the problem first, then test each option.
+
+**Step 1 - identify the problem**
+L3 is `for(;;)` - an infinite loop with no exit condition. The question is about finding
+a combination that prevents it from running forever.
+
+**Step 2 - understand what each blank can do**
+- Blank 1 (line 8): runs when `humidity-- % 12 == 0`. humidity starts at 12, so first
+  check: `12 % 12 == 0` = true. After the check humidity becomes 11 (post-decrement).
+- Blank 2 (line 12): runs when `temperature > 50`. temperature starts at 30 and
+  increments each L3 iteration, so this triggers after 21 iterations.
+
+**Step 3 - the goal**
+Either never enter L3 at all, OR exit L3 once inside it.
+
+**Option A: `break L2` on line 8, `continue L2` on line 12** - CORRECT
+- Line 8: humidity=12, condition true -> `break L2` exits the do/while entirely,
+  skipping L3 completely. L1 continues to next height iteration.
+- L3 is never reached. No infinite loop.
+
+**Option B: `continue` on line 8, `continue` on line 12** - WRONG
+- Line 8: condition true -> `continue` targets L2 (nearest loop). Skips to L2's
+  condition. humidity=11, still > 4, loops again.
+- Second time: humidity=11, `11 % 12 != 0`, falls through to L3.
+- Line 12: `continue` targets L3 (nearest loop). Just loops back to top of L3.
+  temperature keeps incrementing but L3 never exits. Infinite loop.
+
+**Option C: `break L3` on line 8, `break L1` on line 12** - WRONG
+- `break L3` on line 8 - L3's label is not visible outside its own loop. Compiler error.
+
+**Option D: `continue L2` on line 8, `continue L3` on line 12** - WRONG
+- Line 8: condition true -> `continue L2`. Skips L3 first time. humidity=11.
+- Second L2 iteration: humidity=11, condition false, falls through to L3.
+- Line 12: `continue L3` loops back to top of L3. Infinite loop.
+
+**Option E: `continue L2` on line 8, `continue L2` on line 12** - CORRECT
+- Line 8: humidity=12, condition true -> `continue L2`. Skips L3. humidity=11.
+  L2 condition `11 > 4` = true, loops again.
+- Second L2 iteration: humidity=11, `11 % 12 != 0`, condition false. Falls through to L3.
+- L3 runs. temperature increments each iteration. When temperature > 50 ->
+  `continue L2` exits L3 and returns to L2's condition check. humidity has been
+  decrementing each L2 iteration. Eventually humidity drops to 4 or below, L2 ends.
+  L1 continues normally. No infinite loop.
+
+**How to approach this type of question:**
+1. Find the infinite loop first - that is always the problem
+2. Eliminate options with compiler errors first (Option C)
+3. For each remaining option, trace what happens to the infinite loop specifically
+4. Eliminate anything that still reaches the infinite loop without a way out
 
 ### Q21 | You answered C (2 lines) | Correct answer: E (4 lines)
 You spotted lines 23 (missing yield + semicolon) and 24 (extra semicolon). You missed:
@@ -170,11 +324,94 @@ You spotted lines 23 (missing yield + semicolon) and 24 (extra semicolon). You m
 - Lines 25 and 26: duplicate case value `30`. Two cases with the same value don't compile.
 Total: 4 lines. Answer is E.
 
+**When yield is required vs not:**
+
+yield is only relevant in switch expressions (the new `->` or block form), not switch statements.
+
+| Situation | yield required? |
+|---|---|
+| Switch expression assigned to a variable, case is a single expression (`->`) | No - value returned implicitly |
+| Switch expression assigned to a variable, case is a block (`-> {}`) | Yes - every path in the block must yield |
+| Switch expression NOT assigned to a variable (void) | No - yield optional |
+| Traditional switch statement (uses `:` and `break`) | Never - yield does not apply |
+
+```java
+// case expression - no yield needed, value returned directly
+var result = switch (x) {
+    case 1 -> "one";        // fine - implicit return
+    default -> "other";
+};
+
+// case block - yield required
+var result = switch (x) {
+    case 1 -> { yield "one"; }    // fine
+    case 2 -> { }                 // DOES NOT COMPILE - no yield
+    case 3 -> {
+        if (x > 0) yield "pos";   // DOES NOT COMPILE - no yield for the else path
+    }
+    default -> "other";
+};
+
+// not assigned - yield not required
+switch (x) {
+    case 1 -> System.out.print("one");  // fine, nothing to return
+}
+```
+
 ### Q22 | You answered G (does not compile - line 6) | Correct answer: E (5 2 1)
 The code compiles without issue. `var one = 1` with `final` makes `one` a compile-time
 constant, so `case one:` is valid. Line 6 has `default: case 3:` on one line - this is valid
-syntax, `default` can appear anywhere.
-Trace: `tailFeathers = 3`. Matches `case 3` (via fall-through from default). Prints 5.
+syntax. In a switch statement, case labels are just markers and you can stack as many as
+you want on the same line or on separate lines - the compiler treats them identically.
+
+```java
+// stacked on one line - valid
+default: case 3: System.out.print(5 + " ");
+
+// written separately - identical behaviour
+default:
+case 3:
+    System.out.print(5 + " ");
+```
+
+This is how you target multiple values with the old `:` switch syntax. It is equivalent
+to the new `,` syntax in switch expressions:
+```java
+// old syntax - stack labels
+case 2:
+case 3:
+    System.out.print("two or three");  // runs if value is 2 OR 3
+
+// new syntax - combine with comma
+case 2, 3 -> System.out.print("two or three");
+```
+
+The exam uses the stacked form specifically to make it look like a syntax error when it isn't.
+
+Note: the comma syntax `case 1, 2:` is only valid in switch expressions, NOT in switch
+statements. In a traditional switch statement you must stack labels separately:
+```java
+// switch statement - comma NOT allowed
+switch (x) {
+    case 1, 2:                   // DOES NOT COMPILE in a switch statement
+        System.out.print("one or two");
+}
+
+// switch statement - correct way
+switch (x) {
+    case 1:
+    case 2:
+        System.out.print("one or two");  // fine
+}
+
+// switch expression - comma IS allowed
+var result = switch (x) {
+    case 1, 2 -> "one or two";   // fine
+    default -> "other";
+};
+```
+
+Trace: `tailFeathers = 3`. Matches `case 3` directly (via the stacked label). Prints `5`.
 While loop: `3 > 1` true, `--tailFeathers` = 2, prints 2. `2 > 1` true, `--tailFeathers`
 = 1, prints 1. `1 > 1` false, loop ends. Output: `5 2 1`. Answer is E.
 
@@ -183,6 +420,28 @@ Flow scoping is the key. After lines 41-42, if `fish` is NOT a String, `guppy` g
 of scope. But if `fish` IS a String, `guppy` IS in scope after the if block. Line 43 then
 tries to declare a NEW `guppy` in the else-if - but `guppy` is still in scope from line 41,
 making it a duplicate variable declaration. The code does not compile.
+
+**instanceof rule - how to read it:**
+```
+leftSide instanceof RightType
+```
+Returns `true` if the actual object pointed to by the left side IS an instance of the right
+type or any subtype of it. Think of the right side as what you're hoping it is.
+
+```java
+Object obj = "hello";            // actual object is a String
+obj instanceof Object   // true  - String IS an Object (going up the chain)
+obj instanceof String   // true  - String IS a String (same type)
+obj instanceof Integer  // false - String is NOT an Integer
+
+Number num = Integer.valueOf(5); // actual object is an Integer
+num instanceof Number   // true  - Integer IS a Number (going up)
+num instanceof Integer  // true  - Integer IS an Integer (same type)
+num instanceof Double   // false - Integer is NOT a Double
+```
+
+The declared type of the reference on the left does not matter - instanceof checks the
+actual object in memory. Going UP the inheritance chain = true. Unrelated type = false.
 
 ### Q29 | You skipped | Correct answer: C (-1 0 1 2 3 4 5 6)
 do/while with no braces: the single statement `System.out.print(++y + " ")` is the body.

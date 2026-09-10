@@ -19,7 +19,10 @@ const CONTENT_DIR = join(ROOT, 'content')
 // Nice subtitles per chapter number. Missing entries fall back to "Chapter N".
 const CHAPTER_TITLES = {
   1: 'Building Blocks',
-  2: 'Operators'
+  2: 'Operators',
+  3: 'Making Decisions',
+  4: 'Core APIs',
+  5: 'Methods'
 }
 
 // Discover "Chapter N" folders (each holding one Markdown file).
