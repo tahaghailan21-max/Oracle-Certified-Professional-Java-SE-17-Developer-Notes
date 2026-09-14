@@ -22,7 +22,9 @@ const CHAPTER_TITLES = {
   2: 'Operators',
   3: 'Making Decisions',
   4: 'Core APIs',
-  5: 'Methods'
+  5: 'Methods',
+  6: 'Class Design',
+  7: 'Beyond Classes'
 }
 
 // Discover "Chapter N" folders (each holding one Markdown file).
