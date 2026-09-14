@@ -954,3 +954,255 @@ public class Dog extends Animal {
 
 `size(int x)` in Dog matches the inherited signature exactly -- it is an override attempt, and `String` is not covariant with `int`. Compile error.
 `size(String x)` has a different parameter type -- it is a new overload. The `String` return type is completely fine.
+
+
+---
+
+### `super` With Hidden Variables
+
+`super` is not limited to methods. It works on fields too. When a child class declares a variable with the same name as a parent variable (hiding it), `super.variableName` reaches the parent's copy from inside the child class.
+
+```java
+class Speedster {
+    int numSpots = 0;
+}
+
+class Cheetah extends Speedster {
+    int numSpots = 0;  // hides Speedster's numSpots
+
+    public Cheetah(int numSpots) {
+        this.numSpots = numSpots;   // assigns to Cheetah's copy
+        super.numSpots = numSpots;  // assigns to Speedster's copy
+    }
+}
+```
+
+Both copies exist inside the same object. `this.numSpots` and plain `numSpots` reach Cheetah's copy. `super.numSpots` reaches Speedster's copy.
+
+This matters when the caller holds a parent reference type, because variable access is resolved by the declared reference type at compile time:
+
+```java
+Speedster s = new Cheetah(50);
+System.out.print(s.numSpots); // reads Speedster's copy - reference type is Speedster
+```
+
+If the goal is for `s.numSpots` to print 50, the constructor must assign 50 to `super.numSpots` (Speedster's copy), not `this.numSpots` (Cheetah's copy).
+
+The rule is the same as with methods -- `super` always skips the current class and goes one level up. The difference from methods is that there is no polymorphism for variables: no matter what the runtime object is, variable access always uses the declared reference type.
+
+
+---
+
+### Immutability Is a Structural Property of the Class Definition
+
+A class is immutable if its definition satisfies the five rules. It does not matter whether:
+- instances can actually be created from outside
+- fields are practically reachable by any caller
+- there is any content to mutate at all
+
+The assessment is purely structural -- you look at the class definition and check the rules.
+
+```java
+public final class Elk {}  // immutable - no fields, nothing to mutate
+```
+
+No fields means nothing can change. The class trivially satisfies every rule.
+
+```java
+public final class Deer {
+    private final Object o = new Object();
+}  // immutable - o is private final with no getter
+```
+
+`Object` is a mutable type, but the caller has no path to reach `o`. No getter, no public field, no method that returns it. From outside the class, `o` is completely inaccessible. The class satisfies all five rules and is immutable.
+
+The fact that `Object` itself could be mutated if you had a reference to it is irrelevant -- nobody outside the class can get that reference.
+
+Contrast with Moose:
+
+```java
+public final class Moose {
+    private final int antlers;  // never assigned - DOES NOT COMPILE
+}
+```
+
+Moose does not compile at all. A `final` instance variable that is never assigned (not at declaration, not in an instance initializer, not in a constructor) is a compile error. A class that does not compile cannot be considered immutable or anything else.
+
+The takeaway: when evaluating immutability, check the rules against the definition. Do not let "there's nothing useful here" or "nobody can reach this" cloud the structural check.
+
+
+---
+
+### Watch Absolute Qualifier Words in Answer Options
+
+The exam frequently uses words like **must**, **always**, **only**, **never**, **cannot** to turn a partially correct statement into a wrong one. These words make a statement absolute. If the real rule has any flexibility at all, the absolute version is wrong.
+
+Q9 option C is the exact example:
+
+- "An overridden method must be **more** accessible than the method in the parent class." -- WRONG
+- The actual rule: the overridden method must be the **same or more** accessible.
+
+"Must be more" means strictly greater. "Same or more" includes staying the same. One word changes the answer entirely.
+
+When you see an answer option, pull out any absolute qualifier and ask: is the rule really this strict, or does it allow the same/equal case too?
+
+Common patterns to watch:
+
+| Word in the option | Question to ask |
+|---|---|
+| must be more | can it stay the same? |
+| must always | are there any exceptions? |
+| cannot | is there a case where it actually can? |
+| only | are there other ways to achieve this? |
+| never | is there even one scenario where it is allowed? |
+
+If the answer to your question is yes, the option is wrong. The exam uses these qualifiers precisely because the real rule is slightly softer than the option states.
+
+
+---
+
+### Where the Compiler Inserts `super()`
+
+The compiler inserts `super()` as the first line of **any** constructor that does not already start with `this()` or `super()`. This applies regardless of how many parameters the constructor has.
+
+```java
+class Canine {
+    public Canine() { logger.append("q"); }          // constructor A
+    public Canine(boolean t) { logger.append("a"); } // constructor B
+    private StringBuilder logger = new StringBuilder();
+}
+
+class Fox extends Canine {
+    public Fox(long x) { print("p"); }         // compiler inserts super() -> calls Canine()
+    public Fox(String name) {
+        this(2);                               // starts with this() -> compiler inserts nothing
+        print("z");
+    }
+    public Fox(int x) { print("r"); }          // compiler inserts super() -> calls Canine()
+}
+```
+
+What the compiler actually produces:
+
+```java
+class Fox extends Canine {
+    public Fox(long x) {
+        super();       // inserted - calls Canine()
+        print("p");
+    }
+    public Fox(String name) {
+        this(2);       // already there - nothing inserted
+        print("z");
+    }
+    public Fox(int x) {
+        super();       // inserted - calls Canine()
+        print("r");
+    }
+}
+```
+
+`Fox(String name)` already starts with `this(2)` so the compiler leaves it alone. The other two have neither `this()` nor `super()` as the first line, so `super()` is inserted into both -- regardless of their parameter lists.
+
+The inserted `super()` always calls the no-argument constructor of the parent. If the parent has no no-argument constructor, the insertion still happens but the call has nowhere to go -- compile error.
+
+```java
+class Animal {
+    public Animal(int age) {} // only constructor - no no-arg version
+}
+
+class Dog extends Animal {
+    public Dog() {}         // compiler inserts super() -> Animal() does not exist -> DOES NOT COMPILE
+    public Dog(String name) {} // compiler inserts super() -> same problem -> DOES NOT COMPILE
+    public Dog(int age) {
+        super(age);         // explicit call -> fine, matches Animal(int age)
+    }
+}
+```
+
+Every constructor except `Dog(int age)` gets `super()` inserted and fails. The fix is always the same: explicitly call a parent constructor that actually exists.
+
+
+---
+
+### Navigating Initialisation Order Questions
+
+The mental model: **constructors are the roadmap, initialisers are passengers that ride along with their class.**
+
+#### Step 1: handle all static initialisers first
+
+Static initialisers run once at class load time, before any instance is created. Superclass static first, then subclass static. Handle these completely before touching any constructor or instance initialiser.
+
+#### Step 2: follow the constructor chain to find the class activation order
+
+Start from `new X()` and follow every `super()` and `this()` call until you reach `Object`. This gives you the order in which each class "activates."
+
+#### Step 3: for each class in activation order, run instance initialisers then constructor body
+
+You do not run all instance initialisers globally first. Each class's initialisers run immediately before that class's constructor body, in the order the classes activated.
+
+For each class:
+1. Instance initialisers and field declarations in file order
+2. Constructor body
+
+```java
+class Antelope {
+    public Antelope(int p) { System.out.print("4"); }  // constructor body
+    { System.out.print("2"); }                          // instance initialiser
+    static { System.out.print("1"); }                   // static initialiser
+}
+public class Gazelle extends Antelope {
+    public Gazelle(int p) {
+        super(6);
+        System.out.print("3");                          // constructor body
+    }
+    static { System.out.print("8"); }                   // static initialiser
+    { System.out.print("9"); }                          // instance initialiser
+}
+```
+
+Navigation:
+
+- Static phase (once, superclass first): Antelope static -> `1`, Gazelle static -> `8`
+- Constructor chain: `new Gazelle(0)` -> `super(6)` -> Antelope activates first, then Gazelle
+- Antelope activates: instance initialiser -> `2`, constructor body -> `4`
+- Gazelle activates: instance initialiser -> `9`, constructor body -> `3`
+
+Final output: `182493`
+
+The physical position of a constructor or initialiser in the source file does not change this order. The constructor body always runs after all instance initialisers for that class, even if the constructor is written before them in the file.
+
+
+---
+
+### Compile Time Check vs Runtime Dispatch
+
+The compiler and the JVM do two completely separate jobs when a method is called through a reference variable.
+
+**Compile time -- is the call legal?**
+The compiler looks only at the declared reference type. If the method exists on that type's contract, the call is allowed. If not, it is rejected and never reaches runtime. The actual runtime object is irrelevant at this stage.
+
+**Runtime -- which version runs?**
+Once the compiler has approved the call, the JVM looks at the actual runtime object and dispatches to the most specific overriding version. This is polymorphism. The declared reference type is irrelevant at this stage.
+
+```java
+Whale whale = new Orca();
+
+whale.dive();    // compile time: dive() is on Whale's contract -> allowed
+                 // runtime: object is Orca -> Orca.dive() runs, prints "Orca diving"
+
+whale.dive(3);   // compile time: dive(int...) is NOT on Whale's contract -> rejected
+                 // never reaches runtime
+```
+
+The two steps are fully independent. Once the compiler approves a call, it hands off entirely to the JVM. The JVM never re-checks whether the method exists -- that was already verified. It only decides which version to run.
+
+This also explains why calling an abstract method through a reference is fine:
+
+```java
+Whale whale = new Orca();
+whale.dive(); // fine - Whale declares dive(), so the compiler approves it
+              // Whale provides no implementation, but the compiler knows any concrete
+              // object stored in a Whale reference must have one
+```
+
+`abstract` just means the declaring class provides no implementation. It does not make the method uncallable -- it guarantees the opposite: every concrete subclass must have an implementation ready, so the call is always safe.
