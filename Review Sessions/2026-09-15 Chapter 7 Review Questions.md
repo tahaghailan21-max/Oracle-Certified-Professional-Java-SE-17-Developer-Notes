@@ -916,3 +916,5 @@ The strong chapters were polymorphism and method overriding, nested classes, and
 3. When identifying the problem, check where exactly the compile error will be reported. It is not always on the line with the root cause. A concrete class that fails to implement an abstract method reports the error on the class declaration line, not on the line of the missing method. A sealed class whose permitted subclass does not extend it reports the error on the sealed class, not on the subclass.
 
 4. Note on Q14 option D: the book marks D as wrong citing `non-sealed` vs `nonsealed` spelling. The option as printed uses the correct hyphenated form `non-sealed`. This appears to be an answer key inconsistency. The actual Java rule is that `non-sealed` is a valid modifier on a subclass of a sealed class. Treat D as a correct statement for exam purposes.
+
+5. When a sealed class uses the `permits` keyword, every class listed must actually `extend` that sealed class. If a listed class does not extend it, the sealed class does not compile -- not the listed class. The `permits` contract is not just "you are allowed to extend me" -- it also means "you must extend me."
