@@ -24,7 +24,8 @@ const CHAPTER_TITLES = {
   4: 'Core APIs',
   5: 'Methods',
   6: 'Class Design',
-  7: 'Beyond Classes'
+  7: 'Beyond Classes',
+  8: 'Lambdas and Functional Interfaces'
 }
 
 // Discover "Chapter N" folders (each holding one Markdown file).
