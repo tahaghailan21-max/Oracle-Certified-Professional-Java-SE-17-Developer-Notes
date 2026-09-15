@@ -1,6 +1,6 @@
 # Chapter 7 - Beyond Classes: Review Questions
 Date: 2026-09-15
-Score: 20 / 30 (67%)
+Score: 19 / 30 (63%)
 
 ---
 
@@ -33,7 +33,7 @@ Score: 20 / 30 (67%)
 | 23  | D           | D              | correct |
 | 24  | B, E        | B, E           | correct |
 | 25  | B           | B              | correct |
-| 26  | G           | G              | correct |
+| 26  | G           | C, F           | wrong   |
 | 27  | B, C, D, G  | B, C, D, G     | correct |
 | 28  | B, D        | A, B, D        | wrong   |
 | 29  | C           | F              | wrong   |
