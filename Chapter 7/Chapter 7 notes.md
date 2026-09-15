@@ -399,12 +399,12 @@ yourself or leave them out -- the compiled result is identical either way.
 
 Implicit modifiers for interfaces:
 
-| What | Implicit modifiers inserted |
-|---|---|
-| The interface itself | `abstract` |
-| Interface variables | `public static final` |
-| Interface methods without a body | `abstract` |
-| Interface methods without `private` | `public` |
+| What                                | Implicit modifiers inserted |
+| ----------------------------------- | --------------------------- |
+| The interface itself                | `abstract`                  |
+| Interface variables                 | `public static final`       |
+| Interface methods without a body    | `abstract`                  |
+| Interface methods without `private` | `public`                    |
 
 ##### Example -- before and after compiler insertion
 
@@ -443,8 +443,7 @@ public interface Dance {
 }
 ```
 
-The compiler would apply `public` to both, creating a direct conflict with the explicit
-`private` and `protected`. Neither compiles.
+The compiler would apply `public` to both, creating a direct conflict with the explicit`protected`. Which doesn't compiles.
 
 ##### Full access modifier rules for interface members
 
@@ -2542,6 +2541,29 @@ single statement using `new`, a type name, and a body `{}`. It must either exten
 or implement an interface -- it cannot do both (unless extending `Object`, which does not
 count as a real constraint).
 
+"Must either extend a class or implement an interface" means exactly one -- no more, no
+less. An anonymous class cannot exist without doing one of them, and it cannot do both
+at the same time. The rule is: pick exactly one.
+
+```java
+// fine - extends an abstract class
+SaleTodayOnly sale = new SaleTodayOnly() {
+    int dollarsOff() { return 3; }
+};
+
+// fine - implements an interface
+Runnable r = new Runnable() {
+    public void run() { System.out.println("running"); }
+};
+
+// NOT possible - cannot extend a class and implement an interface simultaneously
+// use a named local class if you need both
+```
+
+The `Object` note: every class implicitly extends `Object` anyway, so that does not count
+as your one meaningful choice. The real choice is between a named class to extend or an
+interface to implement.
+
 ##### What problem does it solve?
 
 Normally, to use a subclass you declare it separately and then instantiate it:
@@ -2634,6 +2656,78 @@ initialisers.
 An anonymous class can only extend one class or implement one interface -- not both.
 If you need both, use a named local class or a regular class instead.
 
+##### Anonymous classes depend on an existing type
+
+An anonymous class cannot exist on its own. It always needs a parent -- either an abstract
+class or an interface -- to borrow its shape from. The anonymous class is the implementation
+of that parent, written inline.
+
+Here is the dependency made explicit:
+
+```java
+// THE PARENT - this is what the anonymous class borrows its shape from
+abstract class Animal {
+    abstract void makeSound(); // the contract - must be implemented
+    void breathe() { System.out.println("breathing"); } // concrete - inherited for free
+}
+
+// THE ANONYMOUS CLASS - depends entirely on Animal to exist
+// without Animal, there is nothing to extend and this cannot be written
+Animal dog = new Animal() {          // "give me an Animal -- body is right here"
+    void makeSound() {               // must implement the abstract method
+        System.out.println("Woof");  // the anonymous class's own implementation
+    }
+    // breathe() is inherited from Animal - no need to write it again
+};
+
+dog.makeSound(); // Woof
+dog.breathe();   // breathing - inherited from Animal
+```
+
+The anonymous class is lines 2-5 of the instantiation block. It is a brand new unnamed
+class that extends `Animal`, provides `makeSound()`, and inherits `breathe()`. Without
+`Animal` existing first, none of this is possible.
+
+Same idea with an interface:
+
+```java
+// THE PARENT - an interface this time
+interface Greeter {
+    void greet(String name); // the contract
+}
+
+// THE ANONYMOUS CLASS - implements Greeter inline
+Greeter formal = new Greeter() {                          // borrows shape from Greeter
+    public void greet(String name) {                      // must implement greet()
+        System.out.println("Good day, " + name + ".");
+    }
+};
+
+Greeter casual = new Greeter() {                          // a second anonymous class - different implementation
+    public void greet(String name) {
+        System.out.println("Hey " + name + "!");
+    }
+};
+
+formal.greet("James"); // Good day, James.
+casual.greet("James"); // Hey James!
+```
+
+Two anonymous classes, both borrowing from `Greeter`, each with their own `greet()`
+implementation. Neither has a name. Neither can be reused anywhere else. They exist
+only as the value assigned to `formal` and `casual`.
+
+The pattern to read in your head every time you see one:
+
+```
+TypeName variable = new TypeName() {
+//                  ^^^^^^^^^^^^        <- the parent being borrowed from
+//                               ^^^    <- start of the anonymous class body
+    // method implementations here      <- this IS the anonymous class
+};
+//^                                     <- end of anonymous class body + end of statement
+```
+
 ##### Anonymous classes and lambda expressions
 
 Before Java 8, anonymous classes were commonly used for short one-method
@@ -2685,3 +2779,563 @@ Key exam traps from these tables:
 - A static nested class accessing an outer instance variable without a reference to the outer object does not compile.
 - A local or anonymous class referencing a reassigned local variable does not compile.
 - An anonymous class cannot implement an interface and extend a class at the same time.
+
+---
+
+### Understanding Polymorphism
+
+**Polymorphism** is the property of an object to be accessed through many different
+reference types. A single Java object can be referenced using:
+
+- A reference of the same type as the object.
+- A reference of a superclass of the object.
+- A reference of an interface the object implements or inherits.
+
+No cast is required when assigning an object to a supertype or interface reference -- the
+assignment is always safe because the object is guaranteed to satisfy that type's contract.
+
+To unpack that: a cast is extra syntax you write to tell the compiler "trust me, this is
+actually this type." You only need it when moving from a general type to a more specific
+one, because that is the risky direction -- the compiler cannot guarantee it is safe. Moving
+from specific to general is always safe, so Java lets you do it silently.
+
+```java
+Lemur lemur = new Lemur();
+
+// specific -> general: always safe, no cast needed
+Primate primate = lemur;   // fine - a Lemur is always a Primate, no question
+HasTail hasTail = lemur;   // fine - a Lemur always implements HasTail, no question
+	
+// general -> specific: risky, cast required
+Lemur l = (Lemur) primate; // cast needed - not every Primate is a Lemur
+                           // this compiles but could throw ClassCastException at runtime
+                           // if the object is not actually a Lemur
+```
+
+A `Lemur` is guaranteed to have everything a `Primate` has and everything `HasTail`
+requires -- it was declared that way. The compiler already knows this, so no confirmation
+is needed. Going the other way, the compiler cannot be sure, so it demands a cast and
+shifts the responsibility to you.
+
+##### One object, many reference types
+
+```java
+public class Primate {
+    public boolean hasHair() { return true; }
+}
+
+public interface HasTail {
+    public abstract boolean isTailStriped();
+}
+
+public class Lemur extends Primate implements HasTail {
+    public boolean isTailStriped() { return false; }
+    public int age = 10;
+
+    public static void main(String[] args) {
+        Lemur lemur = new Lemur();
+        System.out.println(lemur.age);           // 10
+
+        HasTail hasTail = lemur;                 // no cast needed - Lemur implements HasTail
+        System.out.println(hasTail.isTailStriped()); // false
+
+        Primate primate = lemur;                 // no cast needed - Lemur extends Primate
+        System.out.println(primate.hasHair());   // true
+    }
+}
+```
+
+Only one object is created -- the `Lemur`. The variables `lemur`, `hasTail`, and `primate`
+are three different references all pointing to the same object on the heap. The object does
+not change; only the reference type changes.
+
+##### The reference type controls what you can call
+
+Once an object is assigned to a supertype reference, only the members visible through
+that reference type are accessible -- even though the underlying object has more:
+
+```java
+HasTail hasTail = new Lemur();
+System.out.println(hasTail.age);          // DOES NOT COMPILE - age is not part of HasTail
+
+Primate primate = new Lemur();
+System.out.println(primate.isTailStriped()); // DOES NOT COMPILE - isTailStriped() is not part of Primate
+```
+
+`hasTail` only knows about methods declared in `HasTail`. The `age` field exists on the
+object, but the compiler only sees the reference type `HasTail` -- and `HasTail` has no
+`age`. Same for `primate`: the underlying object is a `Lemur` with `isTailStriped()`, but
+`Primate` does not declare it, so the compiler rejects the call.
+
+The object on the heap has not changed. What changed is what the compiler allows you
+to see through that reference.
+
+---
+
+### Object vs. Reference
+
+You never have direct access to an object in Java -- you always go through a reference.
+The object lives on the heap. The reference is just a variable that points to it.
+
+Two rules that follow from this:
+
+1. **The type of the object** determines which properties exist in memory.
+2. **The type of the reference** determines which methods and variables your code can call.
+
+The object never changes when you change the reference type. Only your view of it changes.
+
+```java
+Lemur lemur = new Lemur();
+Object lemurAsObject = lemur; // the object on the heap is still a Lemur
+                              // but through Object, you can only call Object's methods
+```
+
+The `Lemur` object still has `age`, `hasHair()`, and `isTailStriped()` in memory. Assigning
+it to `lemurAsObject` does not remove or change anything on the heap. It just narrows
+what you can see through that reference. To get full `Lemur` access back, you cast:
+
+```java
+Lemur backAgain = (Lemur) lemurAsObject; // explicit cast restores access to Lemur members
+```
+
+##### Visualising it
+
+Three references, one object:
+
+```
+hasTail  ----\
+              \
+lemur   ------> [ Lemur object in memory ]
+              /    age = 10
+primate ----/      hasHair()
+                   isTailStriped()
+```
+
+All three arrows point to the same box. The box does not change. What changes is which
+parts of the box each reference can see:
+
+- `lemur` (type `Lemur`): sees everything -- `age`, `hasHair()`, `isTailStriped()`.
+- `primate` (type `Primate`): sees only `hasHair()`.
+- `hasTail` (type `HasTail`): sees only `isTailStriped()`.
+
+The properties that `hasTail` cannot see (`age`) still exist in the object. They were there
+before the reference was changed and they remain there. You just need a cast to reclaim
+access to them.
+
+---
+
+### Using Interface References
+
+When working with objects that share a common interface, prefer the interface as the
+reference type rather than the concrete class. This makes the code flexible -- it works with
+any class that implements the interface, not just one specific class.
+
+```java
+public void sortAndPrintZooAnimals(List<String> animals) {
+    Collections.sort(animals);
+    for (String a : animals) System.out.println(a);
+}
+```
+
+`animals` is declared as `List<String>`, not `ArrayList<String>` or `LinkedList<String>`.
+The method does not care what the underlying implementation is. Anything that implements
+`List` works. This is the practical benefit of polymorphism: write code once, use it with
+any compatible type.
+
+```java
+sortAndPrintZooAnimals(new ArrayList<>(List.of("Zebra", "Ant", "Lemur"))); // fine
+sortAndPrintZooAnimals(new LinkedList<>(List.of("Zebra", "Ant", "Lemur"))); // also fine
+```
+
+If the parameter type were `ArrayList<String>`, the second call would not compile even
+though a `LinkedList` also sorts and prints perfectly well. Using the interface type removes
+that unnecessary restriction.
+
+Both calls work not because `ArrayList` and `LinkedList` have their own `sort()` method,
+but because both implement `List`, and `Collections.sort()` accepts any `List`. The object
+does not sort itself -- it is passed to the static utility `Collections.sort()`, which uses the
+`List` interface's own methods (`get()`, `set()`, `size()`) internally to do the work. Any
+object that is a `List` qualifies. An object that is not a `List` (like a `HashSet`) would not
+even compile as the argument.
+
+---
+
+### Casting Objects
+
+When you assign an object to a supertype reference you lose direct access to the subtype's
+members. You can reclaim them by casting back to the specific subtype.
+
+```java
+Lemur lemur   = new Lemur();
+Primate primate = lemur;           // implicit cast - subtype to supertype, no cast operator needed
+Lemur lemur2  = (Lemur) primate;   // explicit cast - supertype back to subtype
+Lemur lemur3  = primate;           // DOES NOT COMPILE - explicit cast required
+```
+
+`lemur3` fails because the compiler sees a `Primate` reference being assigned to a `Lemur`
+variable. Even though the object in memory is actually a `Lemur`, the compiler only looks
+at the reference type -- and a `Primate` reference is not automatically a `Lemur`. The cast
+operator `(Lemur)` is required to make the intent explicit.
+
+##### Casting rules for the exam
+
+1. Subtype to supertype: implicit cast, no operator needed.
+2. Supertype to subtype: explicit cast required with `(Type)`.
+3. Invalid cast at runtime (object is not actually the target type): throws `ClassCastException`.
+4. Cast between completely unrelated types: compile error -- the compiler rejects it outright.
+
+##### ClassCastException at runtime
+
+The compiler allows an explicit cast as long as the types are related. But if the actual
+object in memory is not compatible with the target type, Java throws a
+`ClassCastException` at runtime:
+
+```java
+Primate primate = new Primate(); // the actual object is a Primate, not a Lemur
+Lemur lemur = (Lemur) primate;   // compiles - types are related (Lemur extends Primate)
+                                 // throws ClassCastException at runtime - object is not a Lemur
+```
+
+The cast compiles because `Lemur` is a subtype of `Primate` -- the relationship exists.
+But the object was never a `Lemur`, so the cast fails when Java checks it at runtime.
+
+##### Disallowed casts -- unrelated types
+
+If two types have no inheritance relationship at all, the compiler rejects the cast entirely.
+Even though all classes implicitly extend `Object`, that shared root is not enough -- the
+compiler requires that one type could plausibly be a subtype of the other:
+
+```java
+public class Bird {}
+public class Fish {
+    public static void main(String[] args) {
+        Fish fish = new Fish();
+        Bird bird = (Bird) fish; // DOES NOT COMPILE - Fish and Bird are unrelated types
+                                 // neither can ever be a subtype of the other
+    }
+}
+```
+
+`Fish` and `Bird` both extend `Object`, but they are on completely separate branches of the
+hierarchy. No `Fish` can ever be a `Bird`, so the compiler does not even allow the attempt.
+
+##### Summary: compile time vs. runtime checks
+
+| Situation                                      | When caught                            |
+| ---------------------------------------------- | -------------------------------------- |
+| Cast between unrelated types                   | Compile time                           |
+| Cast from supertype to subtype (related types) | Compiles, checked at runtime           |
+| Cast from subtype to supertype                 | Compiles, always safe, no check needed |
+
+---
+
+### Casting Interfaces
+
+The compiler can reject casts between unrelated classes, but it cannot always do the same
+for interfaces. Because a class can be subclassed, and a subclass could implement any
+interface, the compiler cannot rule out that the object behind a reference might be a
+subclass that does implement the interface. So it allows the cast and defers the check to
+runtime.
+
+```java
+interface Canine {}
+interface Dog {}
+class Wolf implements Canine {}
+
+public class BadCasts {
+    public static void main(String[] args) {
+        Wolf wolfy = new Wolf();
+        Dog badWolf = (Dog) wolfy; // compiles - compiler cannot rule out a Wolf subclass
+                                   // implementing Dog
+                                   // throws ClassCastException at runtime - Wolf doesn't implement Dog
+    }
+}
+```
+
+`Wolf` does not implement `Dog`, and they have no relationship. But the compiler allows
+the cast because it cannot be certain there is no subclass of `Wolf` that implements `Dog`.
+The runtime check catches it and throws `ClassCastException`.
+
+##### The one case the compiler does enforce with interfaces
+
+If the class is marked `final`, the compiler knows there can be no subclasses, so it can
+rule out the cast entirely:
+
+```java
+final class Wolf implements Canine {}
+
+Dog badWolf = (Dog) wolfy; // DOES NOT COMPILE - Wolf is final, no subclass can implement Dog
+```
+
+With `final`, the compiler knows with certainty that `Wolf` will never implement `Dog`,
+so it rejects the cast at compile time.
+
+---
+
+### The `instanceof` Operator
+
+`instanceof` checks whether an object is an instance of a particular type before casting,
+preventing a `ClassCastException` at runtime. It supports pattern matching (introduced
+in Chapter 3) to combine the check and cast into one step.
+
+##### What `instanceof` returns
+
+Given `Lemur extends Primate` and `Lemur implements HasTail`:
+
+| Expression | Result | Reason |
+|---|---|---|
+| `lemur instanceof Lemur` | `true` | same type |
+| `lemur instanceof Primate` | `true` | Lemur is a subtype of Primate |
+| `lemur instanceof HasTail` | `true` | Lemur implements HasTail |
+| `lemur instanceof Object` | `true` | everything is an Object |
+| `primate instanceof Lemur` | `false` (at runtime, if object is just a Primate) | Primate is not necessarily a Lemur |
+| `null instanceof Lemur` | `false` | null is never an instance of anything |
+
+The rule: `x instanceof T` returns `true` if the actual object in memory could be assigned
+to a variable of type `T` without a `ClassCastException`. It checks the heap object, not the
+reference type.
+
+```java
+Primate primate = new Lemur(); // reference is Primate, object is Lemur
+System.out.println(primate instanceof Lemur);   // true  - object is actually a Lemur
+System.out.println(primate instanceof Primate); // true  - Lemur is a Primate
+System.out.println(primate instanceof Object);  // true  - everything is an Object
+
+Primate pureP = new Primate();
+System.out.println(pureP instanceof Lemur);     // false - object is just a Primate, not a Lemur
+```
+
+```java
+class Rodent {}
+
+public class Capybara extends Rodent {
+    public static void main(String[] args) {
+        Rodent rodent = new Rodent();
+
+        var capybara = (Capybara) rodent; // ClassCastException at runtime - not a Capybara
+
+        // safe version using instanceof with pattern matching:
+        if (rodent instanceof Capybara c) {
+            // c is already cast to Capybara here - only runs if the check passes
+        }
+    }
+}
+```
+
+The cast inside the `if` block only runs when the object actually is a `Capybara`. No
+exception possible.
+
+##### `instanceof` also rejects unrelated types at compile time
+
+Just like explicit casts, `instanceof` with completely unrelated types is a compile error:
+
+```java
+public class Bird {}
+public class Fish {
+    public static void main(String[] args) {
+        Fish fish = new Fish();
+        if (fish instanceof Bird b) { // DOES NOT COMPILE - Fish and Bird are unrelated
+        }
+    }
+}
+```
+
+---
+
+### Polymorphism and Method Overriding
+
+When a method is overridden in a subclass, all calls to that method -- including calls made
+from the parent class itself -- use the overridden version. The method that runs is
+determined by the actual object in memory, not by the reference type or where the call
+is written.
+
+```java
+class Penguin {
+    public int getHeight() { return 3; }
+    public void printInfo() {
+        System.out.print(this.getHeight()); // which getHeight() runs?
+    }
+}
+
+public class EmperorPenguin extends Penguin {
+    public int getHeight() { return 8; }
+
+    public static void main(String[] args) {
+        new EmperorPenguin().printInfo(); // prints 8, not 3
+    }
+}
+```
+
+`printInfo()` is defined in `Penguin` and calls `this.getHeight()`. But the object in memory
+is an `EmperorPenguin`, which has overridden `getHeight()`. At runtime, Java dispatches
+the call to the overridden version -- `8` is returned. The `this` reference does not force
+the parent's version; it refers to the actual object, which is an `EmperorPenguin`.
+
+This is the core of polymorphism: the parent class does not need to know about subclasses.
+Whenever a method is properly overridden, the overridden version is used everywhere
+that method is called, automatically.
+
+To prevent this behaviour on a specific method, mark it `final` -- it cannot be overridden
+and will always run the parent's version.
+
+##### Calling the parent version of an overridden method
+
+The parent version is not gone -- you can reach it with `super`. But `super` must be used
+from the correct class. It refers to the superclass of the class where it is written, not the
+object's actual type.
+
+```java
+class Penguin {
+    public int getHeight() { return 3; }
+    public void printInfo() {
+        System.out.print(super.getHeight()); // DOES NOT COMPILE
+        // super here refers to Penguin's superclass, which is Object
+        // Object has no getHeight() method
+    }
+}
+```
+
+`super` inside `Penguin` refers to `Object` -- not to `EmperorPenguin`'s parent. `Object`
+has no `getHeight()`, so this does not compile.
+
+The fix is to override `printInfo()` in `EmperorPenguin` and use `super` there, where it
+correctly refers to `Penguin`:
+
+```java
+public class EmperorPenguin extends Penguin {
+    public int getHeight() { return 8; }
+
+    public void printInfo() {
+        System.out.print(super.getHeight()); // super here refers to Penguin - prints 3
+    }
+
+    public static void main(String[] args) {
+        new EmperorPenguin().printInfo(); // 3
+    }
+}
+```
+
+`super.getHeight()` inside `EmperorPenguin` refers to `Penguin.getHeight()`, which
+returns `3`. The overridden version is bypassed explicitly.
+
+---
+
+### Overriding vs. Hiding Members
+
+Before looking at the examples, here is the full distinction between overriding and hiding.
+
+##### Overriding (instance methods only)
+
+When a subclass provides a new implementation of an instance method with the same
+signature, the method is overridden. At runtime, Java looks at the actual object on the
+heap to decide which version to call -- the reference type is irrelevant.
+
+```java
+Penguin p = new EmperorPenguin();
+p.getHeight(); // calls EmperorPenguin's version - 8
+               // even though the reference type is Penguin
+```
+
+The overridden version wins everywhere, regardless of which reference type you hold.
+
+##### Hiding (static methods and instance variables)
+
+Static methods and instance variables are never overridden -- they are hidden. Java uses
+the reference type (not the heap object) to decide which version to use.
+
+```java
+// static method hiding
+Penguin p = new CrestedPenguin();
+p.getHeight();            // calls Penguin's version - 3  (reference type is Penguin)
+
+CrestedPenguin c = new CrestedPenguin();
+c.getHeight();            // calls CrestedPenguin's version - 8 (reference type is CrestedPenguin)
+
+// variable hiding
+Marsupial m = new Kangaroo();
+System.out.println(m.age); // 2 - Marsupial's field (reference type is Marsupial)
+
+Kangaroo k = new Kangaroo();
+System.out.println(k.age); // 6 - Kangaroo's field (reference type is Kangaroo)
+```
+
+##### The rule in one table
+
+| Member type | Resolved by | Term |
+|---|---|---|
+| Instance method | Actual object on the heap (runtime) | Overriding |
+| Static method | Reference type (compile time) | Hiding |
+| Instance variable | Reference type (compile time) | Hiding |
+
+Overriding is runtime behaviour. Hiding is compile-time behaviour. Only instance methods
+are truly overridden -- everything else is hidden.
+
+---
+
+### Overriding vs. Hiding -- Static Method Example
+
+```java
+class Penguin {
+    public static int getHeight() { return 3; }
+    public void printInfo() {
+        System.out.println(this.getHeight()); // this has no effect on static - uses Penguin's version
+    }
+}
+
+public class CrestedPenguin extends Penguin {
+    public static int getHeight() { return 8; }
+
+    public static void main(String... fish) {
+        new CrestedPenguin().printInfo(); // prints 3, not 8
+    }
+}
+```
+
+`getHeight()` is static, so it is hidden, not overridden. `printInfo()` is defined in
+`Penguin`, and even though `this` is used, static dispatch uses the class where the call is
+written -- `Penguin` -- not the runtime object. The result is `3`.
+
+Contrast with the `EmperorPenguin` example earlier where `getHeight()` was an instance
+method and printed `8`. That is the entire difference: instance method = overridden =
+runtime object decides. Static method = hidden = class where call is written decides.
+
+Note: using `this` to call a static method is allowed but misleading and discouraged. The
+compiler may warn you. `this` has no actual effect on which static method is called.
+
+---
+
+### Overriding vs. Hiding -- Variables and Static Methods Together
+
+```java
+class Marsupial {
+    protected int age = 2;
+    public static boolean isBiped() { return false; }
+}
+
+public class Kangaroo extends Marsupial {
+    protected int age = 6;
+    public static boolean isBiped() { return true; }
+
+    public static void main(String[] args) {
+        Kangaroo joey = new Kangaroo();
+        Marsupial moey = joey;           // same object, different reference type
+
+        System.out.println(joey.isBiped()); // true  - reference type is Kangaroo
+        System.out.println(moey.isBiped()); // false - reference type is Marsupial
+        System.out.println(joey.age);       // 6     - reference type is Kangaroo
+        System.out.println(moey.age);       // 2     - reference type is Marsupial
+    }
+}
+```
+
+Only one object exists -- a `Kangaroo`. But `joey` and `moey` are two different reference
+types pointing to it. Because `isBiped()` is static and `age` is an instance variable, both
+are hidden rather than overridden. The reference type determines the result in both cases:
+
+- `joey.isBiped()` uses `Kangaroo.isBiped()` -- `true`.
+- `moey.isBiped()` uses `Marsupial.isBiped()` -- `false`.
+- `joey.age` sees `Kangaroo.age` -- `6`.
+- `moey.age` sees `Marsupial.age` -- `2`.
+
+Same object, four different results, all driven by the reference type. This would never
+happen with overridden instance methods -- those always follow the object.
