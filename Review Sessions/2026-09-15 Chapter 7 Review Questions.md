@@ -6,38 +6,38 @@ Score: 20 / 30 (67%)
 
 ## Results
 
-| Q  | Your Answer | Correct Answer | Result  |
-|----|-------------|----------------|---------|
-| 1  | B, D        | B, D           | correct |
-| 2  | A, B, D, E  | A, B, D, E     | correct |
-| 3  | C           | C              | correct |
-| 4  | C           | C              | correct |
-| 5  | F           | E              | wrong   |
-| 6  | D           | D, E           | wrong   |
-| 7  | A           | E              | wrong   |
-| 8  | A, B, C     | A, B, C        | correct |
-| 9  | A, E, F     | A, E, F        | correct |
-| 10 | B, C, E     | A, B, C, E     | wrong   |
-| 11 | B           | B              | correct |
-| 12 | A, B, E     | A, B, E        | correct |
-| 13 | F           | F              | correct |
-| 14 | A, C, D, E  | A, C, E        | wrong   |
-| 15 | G           | G              | correct |
-| 16 | E           | E              | correct |
-| 17 | E, G        | E, G           | correct |
-| 18 | E           | E              | correct |
-| 19 | G           | G              | correct |
-| 20 | A, D, F     | A, D, F        | correct |
-| 21 | F           | F              | correct |
-| 22 | C, D, G     | C, D, G        | correct |
-| 23 | D           | D              | correct |
-| 24 | B, E        | B, E           | correct |
-| 25 | B           | B              | correct |
-| 26 | G           | G              | correct |
-| 27 | B, C, D, G  | B, C, D, G     | correct |
-| 28 | B, D        | A, B, D        | wrong   |
-| 29 | C           | F              | wrong   |
-| 30 | G           | C, E           | wrong   |
+| Q   | Your Answer | Correct Answer | Result  |
+| --- | ----------- | -------------- | ------- |
+| 1   | B, D        | B, D           | correct |
+| 2   | A, B, D, E  | A, B, D, E     | correct |
+| 3   | C           | C              | correct |
+| 4   | C           | C              | correct |
+| 5   | F           | E              | wrong   |
+| 6   | D           | D, E           | wrong   |
+| 7   | A           | E              | wrong   |
+| 8   | A, B, C     | A, B, C        | correct |
+| 9   | A, E, F     | A, E, F        | correct |
+| 10  | B, C, E     | A, B, C, E     | wrong   |
+| 11  | B           | B              | correct |
+| 12  | A, B, E     | A, B, E        | correct |
+| 13  | F           | F              | correct |
+| 14  | A, C, D, E  | A, C, E        | wrong   |
+| 15  | G           | G              | correct |
+| 16  | E           | E              | correct |
+| 17  | E, G        | E, G           | correct |
+| 18  | E           | E              | correct |
+| 19  | G           | G              | correct |
+| 20  | A, D, F     | A, D, F        | correct |
+| 21  | F           | F              | correct |
+| 22  | C, D, G     | C, D, G        | correct |
+| 23  | D           | D              | correct |
+| 24  | B, E        | B, E           | correct |
+| 25  | B           | B              | correct |
+| 26  | G           | G              | correct |
+| 27  | B, C, D, G  | B, C, D, G     | correct |
+| 28  | B, D        | A, B, D        | wrong   |
+| 29  | C           | F              | wrong   |
+| 30  | G           | C, E           | wrong   |
 
 ---
 
@@ -903,3 +903,16 @@ public nonsealed class Panda extends Bear {}  // DOES NOT COMPILE
 **Record compile errors (Q5 pointing to wrong line, Q7 missing the access modifier).** In Q5 you identified the right problem but answered with the wrong line. The compile error is always on the class declaration when an abstract method is unimplemented. In Q7 you got the output right but missed that the method needs `public` to implement the interface correctly. Interface methods are implicitly public -- implementing them with default access is a visibility reduction.
 
 The strong chapters were polymorphism and method overriding, nested classes, and records. Those came through clearly. The gaps are in small precise rules around sealed classes, enums, and when compile errors vs. runtime exceptions occur.
+
+
+---
+
+## Personal Notes
+
+1. Always check whether who is implementing/extending who is correct. A class cannot `extend` an interface -- it must `implement` it. An interface cannot `extend` a class. An interface can only `extend` another interface. Getting these keywords mixed up is an instant compile error.
+
+2. Always check whether methods are accessible. Edge case: interface methods are implicitly `public`, but in abstract classes they are not -- they use whatever access modifier is written (or package access if nothing is written). If a class implements an interface method and omits `public`, that is a reduction in visibility and a compile error. The rule does not apply the same way when extending an abstract class.
+
+3. When identifying the problem, check where exactly the compile error will be reported. It is not always on the line with the root cause. A concrete class that fails to implement an abstract method reports the error on the class declaration line, not on the line of the missing method. A sealed class whose permitted subclass does not extend it reports the error on the sealed class, not on the subclass.
+
+4. Note on Q14 option D: the book marks D as wrong citing `non-sealed` vs `nonsealed` spelling. The option as printed uses the correct hyphenated form `non-sealed`. This appears to be an answer key inconsistency. The actual Java rule is that `non-sealed` is a valid modifier on a subclass of a sealed class. Treat D as a correct statement for exam purposes.
