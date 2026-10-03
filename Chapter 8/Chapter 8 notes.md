@@ -883,6 +883,24 @@ Replacer methodRef = String::replace;
 System.out.println(methodRef.replace("hello world", "world", "Java")); // hello Java
 ```
 
+If the SAM parameter count doesn't match (too many or too few), it's a compile error --
+the compiler resolves it like a normal overload: param[0] is the receiver, param[1..n] are
+the arguments, and if no matching method exists on the class, it fails:
+
+```java
+// Too many -- no String.replace(String, String, String) exists
+interface TooMany {
+    String replace(String original, String target, String replacement, String extra);
+}
+TooMany ref = String::replace; // COMPILE ERROR
+
+// Too few -- no String.replace() with zero args exists
+interface TooFew {
+    String replace(String original);
+}
+TooFew ref2 = String::replace; // COMPILE ERROR
+```
+
 ---
 
 #### Type 4 -- Calling constructors
@@ -1061,17 +1079,17 @@ The interfaces use generic type parameters to stay flexible:
 
 #### Core functional interfaces (Table 8.4)
 
-| Interface | Return type | Method | Parameters |
-|---|---|---|---|
-| `Supplier<T>` | `T` | `get()` | 0 |
-| `Consumer<T>` | `void` | `accept(T)` | 1 (T) |
-| `BiConsumer<T, U>` | `void` | `accept(T, U)` | 2 (T, U) |
-| `Predicate<T>` | `boolean` | `test(T)` | 1 (T) |
-| `BiPredicate<T, U>` | `boolean` | `test(T, U)` | 2 (T, U) |
-| `Function<T, R>` | `R` | `apply(T)` | 1 (T) |
-| `BiFunction<T, U, R>` | `R` | `apply(T, U)` | 2 (T, U) |
-| `UnaryOperator<T>` | `T` | `apply(T)` | 1 (T) |
-| `BinaryOperator<T>` | `T` | `apply(T, T)` | 2 (T, T) |
+| Interface             | Return type | Method         | Parameters |
+| --------------------- | ----------- | -------------- | ---------- |
+| `Supplier<T>`         | `T`         | `get()`        | 0          |
+| `Consumer<T>`         | `void`      | `accept(T)`    | 1 (T)      |
+| `BiConsumer<T, U>`    | `void`      | `accept(T, U)` | 2 (T, U)   |
+| `Predicate<T>`        | `boolean`   | `test(T)`      | 1 (T)      |
+| `BiPredicate<T, U>`   | `boolean`   | `test(T, U)`   | 2 (T, U)   |
+| `Function<T, R>`      | `R`         | `apply(T)`     | 1 (T)      |
+| `BiFunction<T, U, R>` | `R`         | `apply(T, U)`  | 2 (T, U)   |
+| `UnaryOperator<T>`    | `T`         | `apply(T)`     | 1 (T)      |
+| `BinaryOperator<T>`   | `T`         | `apply(T, T)`  | 2 (T, T)   |
 
 This table must be memorised for the exam. The key things to anchor each one:
 
@@ -1574,26 +1592,26 @@ differences from the generic versions:
 - The SAM is often renamed to reflect the return type (e.g. `applyAsInt` instead of `apply`)
 - `XxxFunction<R>` keeps one generic for the return type since the return is still an object
 
-| Interface | Return type | SAM name | Parameters |
-|---|---|---|---|
-| `DoubleSupplier` | `double` | `getAsDouble()` | 0 |
-| `IntSupplier` | `int` | `getAsInt()` | 0 |
-| `LongSupplier` | `long` | `getAsLong()` | 0 |
-| `DoubleConsumer` | `void` | `accept(double)` | 1 (double) |
-| `IntConsumer` | `void` | `accept(int)` | 1 (int) |
-| `LongConsumer` | `void` | `accept(long)` | 1 (long) |
-| `DoublePredicate` | `boolean` | `test(double)` | 1 (double) |
-| `IntPredicate` | `boolean` | `test(int)` | 1 (int) |
-| `LongPredicate` | `boolean` | `test(long)` | 1 (long) |
-| `DoubleFunction<R>` | `R` | `apply(double)` | 1 (double) |
-| `IntFunction<R>` | `R` | `apply(int)` | 1 (int) |
-| `LongFunction<R>` | `R` | `apply(long)` | 1 (long) |
-| `DoubleUnaryOperator` | `double` | `applyAsDouble(double)` | 1 (double) |
-| `IntUnaryOperator` | `int` | `applyAsInt(int)` | 1 (int) |
-| `LongUnaryOperator` | `long` | `applyAsLong(long)` | 1 (long) |
-| `DoubleBinaryOperator` | `double` | `applyAsDouble(double, double)` | 2 (double, double) |
-| `IntBinaryOperator` | `int` | `applyAsInt(int, int)` | 2 (int, int) |
-| `LongBinaryOperator` | `long` | `applyAsLong(long, long)` | 2 (long, long) |
+| Interface              | Return type | SAM name                        | Parameters         |
+| ---------------------- | ----------- | ------------------------------- | ------------------ |
+| `DoubleSupplier`       | `double`    | `getAsDouble()`                 | 0                  |
+| `IntSupplier`          | `int`       | `getAsInt()`                    | 0                  |
+| `LongSupplier`         | `long`      | `getAsLong()`                   | 0                  |
+| `DoubleConsumer`       | `void`      | `accept(double)`                | 1 (double)         |
+| `IntConsumer`          | `void`      | `accept(int)`                   | 1 (int)            |
+| `LongConsumer`         | `void`      | `accept(long)`                  | 1 (long)           |
+| `DoublePredicate`      | `boolean`   | `test(double)`                  | 1 (double)         |
+| `IntPredicate`         | `boolean`   | `test(int)`                     | 1 (int)            |
+| `LongPredicate`        | `boolean`   | `test(long)`                    | 1 (long)           |
+| `DoubleFunction<R>`    | `R`         | `apply(double)`                 | 1 (double)         |
+| `IntFunction<R>`       | `R`         | `apply(int)`                    | 1 (int)            |
+| `LongFunction<R>`      | `R`         | `apply(long)`                   | 1 (long)           |
+| `DoubleUnaryOperator`  | `double`    | `applyAsDouble(double)`         | 1 (double)         |
+| `IntUnaryOperator`     | `int`       | `applyAsInt(int)`               | 1 (int)            |
+| `LongUnaryOperator`    | `long`      | `applyAsLong(long)`             | 1 (long)           |
+| `DoubleBinaryOperator` | `double`    | `applyAsDouble(double, double)` | 2 (double, double) |
+| `IntBinaryOperator`    | `int`       | `applyAsInt(int, int)`          | 2 (int, int)       |
+| `LongBinaryOperator`   | `long`      | `applyAsLong(long, long)`       | 2 (long, long)     |
 
 #### Primitive-to-primitive conversion interfaces
 
@@ -1970,10 +1988,10 @@ public class Crow {
 
 ##### Variable access rules (Table 8.8)
 
-| Variable type | Accessible from lambda? |
-|---|---|
-| Instance variable | Always |
-| Static variable | Always |
-| Local variable | Only if `final` or effectively final |
-| Method parameter | Only if `final` or effectively final |
-| Lambda parameter | Always (it belongs to the lambda itself) |
+| Variable type     | Accessible from lambda?                  |
+| ----------------- | ---------------------------------------- |
+| Instance variable | Always                                   |
+| Static variable   | Always                                   |
+| Local variable    | Only if `final` or effectively final     |
+| Method parameter  | Only if `final` or effectively final     |
+| Lambda parameter  | Always (it belongs to the lambda itself) |

@@ -25,7 +25,9 @@ const CHAPTER_TITLES = {
   5: 'Methods',
   6: 'Class Design',
   7: 'Beyond Classes',
-  8: 'Lambdas and Functional Interfaces'
+  8: 'Lambdas and Functional Interfaces',
+  9: 'Collections and Generics',
+  10: 'Streams'
 }
 
 // Discover "Chapter N" folders (each holding one Markdown file).
