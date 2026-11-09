@@ -1827,7 +1827,7 @@ stream instead of an object stream.
 
 ---
 
-#### Converting a primitive stream to Stream<T>
+#### Converting a primitive stream to Stream`<T>`
 
 Two equivalent ways to go from `IntStream` back to `Stream<Integer>`:
 
