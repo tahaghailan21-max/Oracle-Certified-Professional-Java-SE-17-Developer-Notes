@@ -29,7 +29,8 @@ const CHAPTER_TITLES = {
   9: 'Collections and Generics',
   10: 'Streams',
   11: 'Exceptions, Formatting, and Localization',
-  12: 'Modules'
+  12: 'Modules',
+  13: 'Concurrency'
 }
 
 // Discover "Chapter N" folders (each holding one Markdown file).
